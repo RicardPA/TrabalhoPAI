@@ -15,9 +15,6 @@ import numpy as np
 
 clicked = False # Verificar comeco de corte
 root = Tk.Tk() # Iniciar tela de menu
-root.title("TrabalhoPAI"); # Alterar nome da tela
-root.minsize(500, 50)
-root.maxsize(500, 50)
 
 """
 Nome: abrir_imagem
@@ -31,7 +28,7 @@ def abrir_imagem():
     fileName = filedialog.askopenfilename(filetypes= (("PNG","*.png"), ("JPG","*.jpg")))
     img = cv2.imread(fileName)
 
-    if img == None:
+    if img is None:
         abrir_menu()
     else:
         cv2.namedWindow("Imagem")
@@ -46,6 +43,7 @@ selecionando e apresentando a parte mais parecida.
 """
 def comparar():
     fechar_menu()
+    abrir_menu()
 
 """
 Nome: cortar_imagem
@@ -73,30 +71,30 @@ def cortar_imagem(mouse, x, y, flags, param):
 
         if len(points) == 2: 
             imgCut = img[points[0][1]:points[1][1], points[0][0]:points[1][0]]
-            cv2.imwrite('processada.png',imgCut)
             cv2.destroyAllWindows()
             cv2.namedWindow("Cortada")
             cv2.imshow("Cortada", imgCut)
-            if imgCut != None:
-                construir_menu_salvar_imagem()
-            else:
+            if imgCut is None:
+                abrir_menu()
                 construir_menu_principal()
+            else:
+                abrir_menu()
+                construir_menu_salvar_imagem()
 
 """
 Nome: salvar_imagem_gerada
 Funcao: Salvar imagem gerada pelo corte.
 """
 def salvar_imagem_gerada():
-    print("SALVAR")
+    filepath = filedialog.askdirectory(title = "Selecione a pasta para armazenar o arquivo")
 
 """
 Nome: nao_salvar_imagem_gerada
 Funcao: Nao salvar imagem rerada pelo corte.
 """
 def nao_salvar_imagem_gerada():
-    print("NAO SALVAR")
-
-
+    cv2.destroyAllWindows()
+    construir_menu_principal()
 # --- --- --- --- TELA PRINCIPAL / MENU --- --- --- ---
 
 """
@@ -127,6 +125,10 @@ Funcao: Criar menu com configuração principal.
 """
 def construir_menu_principal():
     # Configurar tela
+    limpar_menu()
+    root.title("Menu (Trabalho de PAI)");
+    root.minsize(500, 50)
+    root.maxsize(500, 50)
     screen = Tk.Canvas(root, height = 50, width= 500, bg = "#202020")
     screen.pack()
 
@@ -144,14 +146,18 @@ Funcao: Criar menu com configuração reponsavel
 por salvar a imagem obtida pelo corte.
 """
 def construir_menu_salvar_imagem():
-    screen = Tk.Canvas(root, height = 50, width= 500, bg = "#202020")
+    limpar_menu()
+    root.title("Aviso");
+    root.minsize(220, 50)
+    root.maxsize(220, 50)
+    screen = Tk.Canvas(root, height = 50, width= 220, bg = "#202020")
     screen.pack()
 
-    btn_salvar = Tk.Button(root, text = "Salvar Imagem", padx = 2, pady = 2, fg = "white", bg = "GREEN", command = salvar_imagem_gerada)
-    btn_salvar.place(relwidth = 0.2, relheight = 0.05, relx = 0.02, rely = 0.02)
+    btn_salvar = Tk.Button(root, text = "Salvar Imagem", padx = 1, pady = 1, fg = "white", bg = "GREEN", command = salvar_imagem_gerada)
+    btn_salvar.place(relwidth = 0.4, relheight = 0.8, relx = 0.02, rely = 0.1)
 
-    btn_nao_salvar = Tk.Button(root, text = "Não Salvar", padx = 2, pady = 2, fg = "white", bg = "RED", command = nao_salvar_imagem_gerada)
-    btn_nao_salvar.place(relwidth = 0.2, relheight = 0.05, relx = 0.23, rely = 0.02)
+    btn_nao_salvar = Tk.Button(root, text = "Não Salvar", padx = 1, pady = 1, fg = "white", bg = "RED", command = nao_salvar_imagem_gerada)
+    btn_nao_salvar.place(relwidth = 0.4, relheight = 0.8, relx = 0.585, rely = 0.1)
 
 construir_menu_principal() # Chamar primeira criacao/configuracao de tela
 root.mainloop() # Deixar tela aberta
