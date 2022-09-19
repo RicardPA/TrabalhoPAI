@@ -11,6 +11,7 @@ from logging import root
 import tkinter as Tk
 from tkinter import filedialog
 import cv2
+import os
 import numpy as np
 
 clicked = False # Verificar comeco de corte
@@ -22,11 +23,23 @@ Funcao: Abrir uma imagem e permitir que o usuario
 corte uma regiao e salve a porte cortada. 
 """
 def abrir_imagem():
-    global img, imgCopy
+    global img, imgCopy, extensionFile
 
     fechar_menu()
     fileName = filedialog.askopenfilename(filetypes= (("PNG","*.png"), ("JPG","*.jpg")))
     img = cv2.imread(fileName)
+    print(fileName)
+
+    index = 0
+    boolChar = False
+    
+    for char in fileName:
+        if char == ".":
+            boolChar = True
+        if not boolChar:
+            index = index + 1 
+
+    extensionFile = fileName[index:] 
 
     if img is None:
         abrir_menu()
@@ -87,6 +100,10 @@ Funcao: Salvar imagem gerada pelo corte.
 """
 def salvar_imagem_gerada():
     filepath = filedialog.askdirectory(title = "Selecione a pasta para armazenar o arquivo")
+    os.chdir(filepath)
+    cv2.imwrite("ImagemCortada" + extensionFile, imgCut)
+    cv2.destroyAllWindows()
+    construir_menu_principal()
 
 """
 Nome: nao_salvar_imagem_gerada
@@ -95,6 +112,7 @@ Funcao: Nao salvar imagem rerada pelo corte.
 def nao_salvar_imagem_gerada():
     cv2.destroyAllWindows()
     construir_menu_principal()
+    
 # --- --- --- --- TELA PRINCIPAL / MENU --- --- --- ---
 
 """
