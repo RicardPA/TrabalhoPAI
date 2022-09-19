@@ -30,16 +30,7 @@ def abrir_imagem():
     img = cv2.imread(fileName)
     print(fileName)
 
-    index = 0
-    boolChar = False
-    
-    for char in fileName:
-        if char == ".":
-            boolChar = True
-        if not boolChar:
-            index = index + 1 
-
-    extensionFile = fileName[index:] 
+    extensionFile = "." + fileName.split(".")[1] 
 
     if img is None:
         abrir_menu()
@@ -85,8 +76,8 @@ def cortar_imagem(mouse, position_x, position_y, flags, param):
         if len(points) == 2: 
             imgCut = img[points[0][1]:points[1][1], points[0][0]:points[1][0]]
             cv2.destroyAllWindows()
-            cv2.namedWindow("Cortada")
-            cv2.imshow("Cortada", imgCut)
+            cv2.namedWindow("Imagem Cortada")
+            cv2.imshow("Imagem Cortada", imgCut)
             if imgCut is None:
                 abrir_menu()
                 construir_menu_principal()
