@@ -63,22 +63,22 @@ Nome: cortar_imagem
 Funcao: Identificar a regiao de corte e retornar
 a imagem da regiao.
 """
-def cortar_imagem(mouse, x, y, flags, param):
+def cortar_imagem(mouse, position_x, position_y, flags, param):
     global clicked, start_x, start_y, end_x, end_y, img, imgCopy, imgCut
 
     if mouse == cv2.EVENT_LBUTTONDOWN:
-        start_x, start_y, end_x, end_y = x, y, x, y
+        start_x, start_y, end_x, end_y = position_x, position_y, position_x, position_y
         clicked = True
 
     elif mouse == cv2.EVENT_MOUSEMOVE:
         if clicked == True:
-            end_x, end_y = x, y
+            end_x, end_y = position_x, position_y
             imgCopy = img.copy() 
             cv2.rectangle(imgCopy, (start_x, start_y),(end_x, end_y), (255, 0, 0), 2)
             cv2.imshow("Imagem", imgCopy)
 
     elif mouse == cv2.EVENT_LBUTTONUP:
-        end_x, end_y = x, y
+        end_x, end_y = position_x, position_y
         clicked = False 
         points = [(start_x, start_y),(end_x, end_y)]
 
