@@ -28,7 +28,6 @@ def abrir_imagem():
     fechar_menu()
     fileName = filedialog.askopenfilename(filetypes= (("PNG","*.png"), ("JPG","*.jpg")))
     img = cv2.imread(fileName)
-    print(fileName)
 
     extensionFile = "." + fileName.split(".")[1] 
 
@@ -90,9 +89,33 @@ Nome: salvar_imagem_gerada
 Funcao: Salvar imagem gerada pelo corte.
 """
 def salvar_imagem_gerada():
-    filepath = filedialog.askdirectory(title = "Selecione a pasta para armazenar o arquivo")
+    typeFileName = extensionFile.split(".")[1].upper()
+    extensionFiletypes = []
+    indexFilePath = 0
+    nameImg = ""
+    
+    if(typeFileName == "PNG"):
+        extensionFiletypes = [('PNG', "*.png")]
+    else:
+        extensionFiletypes = [('JPG', "*.jpg")]
+
+    filepathAndFile = filedialog.asksaveasfilename(title = "Selecione a pasta para armazenar o arquivo", filetypes = extensionFiletypes)
+    
+    for char in filepathAndFile[::-1]:
+        if(char != "/"):
+            indexFilePath = indexFilePath + 1
+        else:
+            break
+
+    nameImg = filepathAndFile[-indexFilePath:]
+
+    if (nameImg[-4] == "."):
+        nameImg = nameImg.split(".")[0]
+    
+    filepath = filepathAndFile[0:-indexFilePath]
+    
     os.chdir(filepath)
-    cv2.imwrite("ImagemCortada" + extensionFile, imgCut)
+    cv2.imwrite(nameImg + extensionFile, imgCut)
     cv2.destroyAllWindows()
     construir_menu_principal()
 
