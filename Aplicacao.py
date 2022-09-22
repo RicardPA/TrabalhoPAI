@@ -6,6 +6,7 @@ Alunos:
 * Ricardo Portilho de Andrade
 """
 
+from PIL import Image, ImageFilter 
 from asyncio.windows_events import NULL
 from logging import root
 import tkinter as Tk
@@ -52,8 +53,80 @@ Funcao: Comparar uma imagem com partes de outra
 selecionando e apresentando a parte mais parecida. 
 """
 def comparar():
+    global firstImg, secondImg, saveImage, extensionFile
+    extensionFiletypes = [('PNG', "*.png"), ('JPG', "*.jpg")]
+
     fechar_menu()
-    abrir_menu()
+
+    # Obter primeiro arquivo selecionado pelo usuario
+    fileNameFirst = filedialog.askopenfilename(title = "Selecione a primeira imagem para comparação", filetypes= extensionFiletypes)
+    firstImg = cv2.imread(fileNameFirst)
+
+    if firstImg is None:
+        abrir_menu()
+    else:
+        if (fileNameFirst[-4] == "."):
+            typeFileName = fileNameFirst.split(".")[1].upper() 
+            extensionFile = "." + fileNameFirst.split(".")[1]
+            pathAndNameFirstImage = fileNameFirst.split(".")[0]
+
+            # Reconhecer a extensao do arquivo e limitar proxima escolha
+            if(typeFileName == "PNG"):
+                extensionFiletypes = [('PNG', "*.png")]
+            else:
+                extensionFiletypes = [('JPG', "*.jpg")]
+
+        # Obter segundo arquivo selecionado pelo usuario
+        fileNameSecond = filedialog.askopenfilename(title = "Selecione a segunda imagem para comparação", filetypes= extensionFiletypes)
+        secondImg = cv2.imread(fileNameSecond)
+
+        if secondImg is None:
+            abrir_menu()
+        else:
+            if (fileNameSecond[-4] == "."):
+                pathAndNameSecondImage = fileNameSecond.split(".")[0]
+
+            imageProcessFirst = Image.open(r""+fileNameFirst)
+            imageProcessSecond = Image.open(r""+fileNameSecond) 
+
+            imageProcessFirst = imageProcessFirst.convert("L") 
+            imageProcessFirst = imageProcessFirst.filter(ImageFilter.FIND_EDGES) 
+            imageProcessFirst.save(r""+pathAndNameFirstImage+"Process"+extensionFile)
+
+            imageProcessSecond = imageProcessSecond.convert("L") 
+            imageProcessSecond = imageProcessSecond.filter(ImageFilter.FIND_EDGES) 
+            imageProcessSecond.save(r""+pathAndNameSecondImage+"Process"+extensionFile)
+
+            processFirstImg = cv2.imread(pathAndNameFirstImage+"Process"+extensionFile)
+            processSecondImg = cv2.imread(pathAndNameSecondImage+"Process"+extensionFile)
+
+            os.remove(pathAndNameFirstImage+"Process"+extensionFile)
+            os.remove(pathAndNameSecondImage+"Process"+extensionFile)
+
+            processFirstImg = processFirstImg - 13
+            processSecondImg = processSecondImg - 13
+
+            resultComparation = cv2.matchTemplate(processSecondImg, processFirstImg, cv2.TM_CCOEFF_NORMED)
+            (valueMin, valueMax, comparationMin, comparationMax) = cv2.minMaxLoc(resultComparation)
+
+            cv2.imshow("IMG(1)", processFirstImg)
+            cv2.imshow("IMG(2)", processSecondImg)
+
+            (valor_inicial_coordenada_x, valor_inicial_coordenada_y) = comparationMax
+            valor_final_coordenada_x = valor_inicial_coordenada_x + firstImg.shape[1]
+            valor_final_coordenada_y = valor_inicial_coordenada_y + firstImg.shape[0]
+            
+            resultImage = secondImg.copy()
+            cv2.rectangle(resultImage, (valor_inicial_coordenada_x, valor_inicial_coordenada_y), (valor_final_coordenada_x, valor_final_coordenada_y), (255, 0, 0), 2)
+            cv2.imshow("Resultado da comparação", resultImage)
+            saveImage = resultImage.copy()
+
+            if resultImage is None:
+                abrir_menu()
+                construir_menu_principal()
+            else:    
+                abrir_menu()
+                construir_menu_salvar_imagem()
 
 """
 Nome: cortar_imagem
@@ -61,7 +134,7 @@ Funcao: Identificar a regiao de corte e retornar
 a imagem da regiao.
 """
 def cortar_imagem(mouse, position_x, position_y, flags, param):
-    global clicked, start_x, start_y, end_x, end_y, img, imgCopy, imgCut
+    global clicked, start_x, start_y, end_x, end_y, img, imgCopy, imgCut, saveImage
 
     # Reconhecer primeiro clique do usuario
     if mouse == cv2.EVENT_LBUTTONDOWN:
@@ -91,6 +164,8 @@ def cortar_imagem(mouse, position_x, position_y, flags, param):
             cv2.destroyAllWindows()
             cv2.namedWindow("Imagem Cortada")
             cv2.imshow("Imagem Cortada", imgCut)
+            saveImage = imgCut.copy()
+
             # Caso nenhuma imagem seja apresentada volta para o menu principal
             if imgCut is None:
                 abrir_menu()
@@ -136,7 +211,7 @@ def salvar_imagem_gerada():
     
     # Salvar arquivo
     os.chdir(filepath)
-    cv2.imwrite(nameImg + extensionFile, imgCut)
+    cv2.imwrite(nameImg + extensionFile, saveImage)
     cv2.destroyAllWindows()
     construir_menu_principal()
 
@@ -196,7 +271,8 @@ def construir_menu_principal():
 """
 Nome: construir_menu_principal
 Funcao: Criar menu com configuração reponsavel
-por salvar a imagem obtida pelo corte.
+por salvar a imagem obtida pelo corte e a imagem 
+resultante da comparacao.
 """
 def construir_menu_salvar_imagem():
     # Configurar tela
