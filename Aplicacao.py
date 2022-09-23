@@ -125,7 +125,7 @@ def comparar():
             # Comparar imagens
             resultComparation = cv2.matchTemplate(processSecondImg, processFirstImg, cv2.TM_CCOEFF_NORMED)
             (valueMin, valueMax, comparationMin, comparationMax) = cv2.minMaxLoc(resultComparation)
-
+            
             # Apresentar imagens com contorno
             cv2.imshow("IMG(1)", processFirstImg)
             cv2.imshow("IMG(2)", processSecondImg)
@@ -278,18 +278,18 @@ def construir_menu_principal():
     # Configurar tela
     limpar_menu()
     root.title("Menu (Trabalho de PAI)");
-    root.minsize(500, 50)
-    root.maxsize(500, 50)
-    screen = Tk.Canvas(root, height = 50, width= 500, bg = "#202020")
+    root.minsize(300, 50)
+    root.maxsize(300, 50)
+    screen = Tk.Canvas(root, height = 50, width = 300, bg = "#202020")
     screen.pack()
 
     # Criar botao responsavel por chamar o corte de uma imagem
     btn_abrir_arquivo = Tk.Button(root, text = "Cortar Imagem", padx = 1, pady = 1, fg = "white", bg = "#00006F", command = abrir_imagem)
-    btn_abrir_arquivo.place(relwidth = 0.2, relheight = 0.8, relx = 0.02, rely = 0.1)
+    btn_abrir_arquivo.place(relwidth = 0.45, relheight = 0.8, relx = 0.02, rely = 0.1)
 
     # Criar botao resonsavel por selecionar imagens que serao comparadas 
     btn_comparar = Tk.Button(root, text = "Comparar", padx = 1, pady = 1, fg = "white", bg = "#00006F", command = comparar)
-    btn_comparar.place(relwidth = 0.2, relheight = 0.8, relx = 0.23, rely = 0.1)
+    btn_comparar.place(relwidth = 0.45, relheight = 0.8, relx = 0.53, rely = 0.1)
 
 """
 Nome: construir_menu_principal
