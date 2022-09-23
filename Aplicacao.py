@@ -62,12 +62,18 @@ def comparar():
     fileNameFirst = filedialog.askopenfilename(title = "Selecione a primeira imagem para comparação", filetypes= extensionFiletypes)
     firstImg = cv2.imread(fileNameFirst)
 
+    # Rcomecar o menu caso nao exista imagem
     if firstImg is None:
         abrir_menu()
+    
+    # Abrir segunda imagem e fazer comparacao
     else:
+        # Obter extensao para obter proxima imgem
         if (fileNameFirst[-4] == "."):
             typeFileName = fileNameFirst.split(".")[1].upper() 
             extensionFile = "." + fileNameFirst.split(".")[1]
+            
+            # Obter caminho do primeiro arquivo
             pathAndNameFirstImage = fileNameFirst.split(".")[0]
 
             # Reconhecer a extensao do arquivo e limitar proxima escolha
@@ -80,50 +86,67 @@ def comparar():
         fileNameSecond = filedialog.askopenfilename(title = "Selecione a segunda imagem para comparação", filetypes= extensionFiletypes)
         secondImg = cv2.imread(fileNameSecond)
 
+        # Rcomecar o menu caso nao exista imagem
         if secondImg is None:
             abrir_menu()
+
+        # Fazer comparacao
         else:
+            # Obter  caminho do segundo arquivo
             if (fileNameSecond[-4] == "."):
                 pathAndNameSecondImage = fileNameSecond.split(".")[0]
 
+            # Abrir imagem
             imageProcessFirst = Image.open(r""+fileNameFirst)
             imageProcessSecond = Image.open(r""+fileNameSecond) 
 
+            # Aplicar filtro para obter contorno da primeira imagem
             imageProcessFirst = imageProcessFirst.convert("L") 
             imageProcessFirst = imageProcessFirst.filter(ImageFilter.FIND_EDGES) 
             imageProcessFirst.save(r""+pathAndNameFirstImage+"Process"+extensionFile)
 
+            # Aplicar filtro para obter contorno da segunda imagem
             imageProcessSecond = imageProcessSecond.convert("L") 
             imageProcessSecond = imageProcessSecond.filter(ImageFilter.FIND_EDGES) 
             imageProcessSecond.save(r""+pathAndNameSecondImage+"Process"+extensionFile)
 
+            # Abrir imagem com contorno
             processFirstImg = cv2.imread(pathAndNameFirstImage+"Process"+extensionFile)
             processSecondImg = cv2.imread(pathAndNameSecondImage+"Process"+extensionFile)
 
+            # Remover imagens com contorno
             os.remove(pathAndNameFirstImage+"Process"+extensionFile)
             os.remove(pathAndNameSecondImage+"Process"+extensionFile)
 
+            # Alterar contraste da imagem
             processFirstImg = processFirstImg - 13
             processSecondImg = processSecondImg - 13
 
+            # Comparar imagens
             resultComparation = cv2.matchTemplate(processSecondImg, processFirstImg, cv2.TM_CCOEFF_NORMED)
             (valueMin, valueMax, comparationMin, comparationMax) = cv2.minMaxLoc(resultComparation)
 
+            # Apresentar imagens com contorno
             cv2.imshow("IMG(1)", processFirstImg)
             cv2.imshow("IMG(2)", processSecondImg)
 
-            (valor_inicial_coordenada_x, valor_inicial_coordenada_y) = comparationMax
-            valor_final_coordenada_x = valor_inicial_coordenada_x + firstImg.shape[1]
-            valor_final_coordenada_y = valor_inicial_coordenada_y + firstImg.shape[0]
+            # Obter coordenadas do local de semelhanca da imagem
+            (start_x, start_y) = comparationMax
+            end_x = start_x + firstImg.shape[1]
+            end_y = start_y + firstImg.shape[0]
             
+            # Apresentar imagem com comparacao
             resultImage = secondImg.copy()
-            cv2.rectangle(resultImage, (valor_inicial_coordenada_x, valor_inicial_coordenada_y), (valor_final_coordenada_x, valor_final_coordenada_y), (255, 0, 0), 2)
+            cv2.rectangle(resultImage, (start_x, start_y), (end_x, end_y), (255, 0, 0), 2)
             cv2.imshow("Resultado da comparação", resultImage)
             saveImage = resultImage.copy()
 
+            # Reiniciar menu
             if resultImage is None:
                 abrir_menu()
                 construir_menu_principal()
+            
+            # Permitir salvar imagem com comparacao
             else:    
                 abrir_menu()
                 construir_menu_salvar_imagem()
