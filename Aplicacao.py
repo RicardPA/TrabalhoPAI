@@ -127,8 +127,8 @@ def comparar():
             (valueMin, valueMax, comparationMin, comparationMax) = cv2.minMaxLoc(resultComparation)
             
             # Apresentar imagens com contorno
-            cv2.imshow("IMG(1)", processFirstImg)
-            cv2.imshow("IMG(2)", processSecondImg)
+            #cv2.imshow("IMG(1)", processFirstImg)
+            #cv2.imshow("IMG(2)", processSecondImg)
 
             # Obter coordenadas do local de semelhanca da imagem
             (start_x, start_y) = comparationMax
