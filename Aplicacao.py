@@ -6,14 +6,37 @@ Alunos:
 * Ricardo Portilho de Andrade
 """
 
-from PIL import Image, ImageFilter 
+import torch
+import torch.nn as nn
+import torchvision.transforms as transforms
+import torchvision.datasets as dsets
+from torchvision import models
+from torchsummary import summary
+from torch import nn, optim
+import torch.nn.functional as functions
+import torchvision
+
+import numpy as np
+import pandas as pd
+
+import datetime as dt
+import math
+import os
+import sys
+import tarfile
+import time
+import tkinter as Tk
+import warnings
 from asyncio.windows_events import NULL
 from logging import root
-import tkinter as Tk
 from tkinter import filedialog
 import cv2
-import os
-import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
+import tqdm
+from PIL import Image, ImageFilter
+
+warnings.filterwarnings("ignore")
 
 clicked = False # Verificar comeco de corte
 root = Tk.Tk() # Iniciar tela de menu
@@ -68,6 +91,8 @@ def comparar():
     
     # Abrir segunda imagem e fazer comparacao
     else:
+        firstImg = cv2.cvtColor(firstImg, cv2.COLOR_BGR2GRAY)
+        firstImg = cv2.equalizeHist(firstImg)
         # Obter extensao para obter proxima imgem
         if (fileNameFirst[-4] == "."):
             typeFileName = fileNameFirst.split(".")[1].upper() 
@@ -92,6 +117,9 @@ def comparar():
 
         # Fazer comparacao
         else:
+            secondImg = cv2.cvtColor(secondImg, cv2.COLOR_BGR2GRAY)
+            secondImg = cv2.equalizeHist(secondImg)
+
             # Obter  caminho do segundo arquivo
             if (fileNameSecond[-4] == "."):
                 pathAndNameSecondImage = fileNameSecond.split(".")[0]
@@ -101,13 +129,11 @@ def comparar():
             imageProcessSecond = Image.open(r""+fileNameSecond) 
 
             # Aplicar filtro para obter contorno da primeira imagem
-            imageProcessFirst = imageProcessFirst.convert("L") 
-            imageProcessFirst = imageProcessFirst.filter(ImageFilter.FIND_EDGES) 
+            
             imageProcessFirst.save(r""+pathAndNameFirstImage+"Process"+extensionFile)
 
             # Aplicar filtro para obter contorno da segunda imagem
-            imageProcessSecond = imageProcessSecond.convert("L") 
-            imageProcessSecond = imageProcessSecond.filter(ImageFilter.FIND_EDGES) 
+            
             imageProcessSecond.save(r""+pathAndNameSecondImage+"Process"+extensionFile)
 
             # Abrir imagem com contorno
@@ -117,10 +143,6 @@ def comparar():
             # Remover imagens com contorno
             os.remove(pathAndNameFirstImage+"Process"+extensionFile)
             os.remove(pathAndNameSecondImage+"Process"+extensionFile)
-
-            # Alterar contraste da imagem
-            processFirstImg = processFirstImg - 13
-            processSecondImg = processSecondImg - 13
 
             # Comparar imagens
             resultComparation = cv2.matchTemplate(processSecondImg, processFirstImg, cv2.TM_CCOEFF_NORMED)
@@ -136,7 +158,7 @@ def comparar():
             end_y = start_y + firstImg.shape[0]
             
             # Apresentar imagem com comparacao
-            resultImage = secondImg.copy()
+            resultImage = cv2.imread(fileNameSecond)
             cv2.rectangle(resultImage, (start_x, start_y), (end_x, end_y), (255, 0, 0), 2)
             cv2.imshow("Resultado da comparação", resultImage)
             saveImage = resultImage.copy()
@@ -150,6 +172,22 @@ def comparar():
             else:    
                 abrir_menu()
                 construir_menu_salvar_imagem()
+
+"""
+Nome: aplicar_histograma
+Funcao: Aplicar uma transformacao radiomatrica simplis na imagem
+"""
+
+def aplicar_histograma(img):
+    for k in range(0, 255):
+        for i in range(m):
+            for j in range(n):
+                if img[i, j]== k:
+                    if k - 20 < 0 : 
+                        img[i, j] = 0  
+                    else: 
+                        img[i, j] = k - 20
+    return img
 
 """
 Nome: cortar_imagem
@@ -245,6 +283,50 @@ Funcao: Nao salvar imagem rerada pelo corte.
 def nao_salvar_imagem_gerada():
     cv2.destroyAllWindows()
     construir_menu_principal()
+
+"""
+Nome: aumentar_dados
+Funcao: Aumentar os dados utilizados na aplicacao
+"""
+def aumentar_dados():
+    filepath = filedialog.askdirectory()
+    filepathDestinyMirrored = filepath + "Mirrored" 
+    filepathDestinyEqualizeHist = filepath + "EqualizeHist" 
+
+    for _, _, arquivos in os.walk(filepath):
+        os.chdir(filepath)
+
+        for arquivo in arquivos:  
+            imagemEqualizeHist = cv2.imread(arquivo)
+            imagemEqualizeHist = cv2.cvtColor(imagemEqualizeHist, cv2.COLOR_BGR2GRAY)
+            imagemEqualizeHist = cv2.equalizeHist(imagemEqualizeHist)
+            imageEspelhada = Image.open(r""+arquivo)
+            imageEspelhada = imageEspelhada.transpose(Image.FLIP_LEFT_RIGHT)
+
+            if os.path.exists(filepathDestinyEqualizeHist):
+                os.chdir(filepathDestinyEqualizeHist)
+                cv2.imwrite("h"+arquivo, imagemEqualizeHist)
+                os.chdir(filepath)
+            else:
+                os.mkdir(filepathDestinyEqualizeHist)
+                os.chdir(filepathDestinyEqualizeHist)
+                cv2.imwrite("h"+arquivo, imagemEqualizeHist)
+                os.chdir(filepath)
+
+            if arquivo.find('R') >= 0:
+                arquivo = arquivo.replace("R", "L")
+            elif arquivo.find('L') >= 0:
+                arquivo = arquivo.replace("L", "R")
+
+            if os.path.exists(filepathDestinyMirrored):
+                os.chdir(filepathDestinyMirrored)
+                imageEspelhada.save(r""+"c"+arquivo)
+                os.chdir(filepath)
+            else:
+                os.mkdir(filepathDestinyMirrored)
+                os.chdir(filepathDestinyMirrored)
+                imageEspelhada.save(r""+"c"+arquivo)
+                os.chdir(filepath)
     
 # --- --- --- --- TELA PRINCIPAL / MENU --- --- --- ---
 
@@ -278,18 +360,22 @@ def construir_menu_principal():
     # Configurar tela
     limpar_menu()
     root.title("Menu (Trabalho de PAI)");
-    root.minsize(300, 50)
-    root.maxsize(300, 50)
-    screen = Tk.Canvas(root, height = 50, width = 300, bg = "#202020")
+    root.minsize(600, 50)
+    root.maxsize(600, 50)
+    screen = Tk.Canvas(root, height = 50, width = 600, bg = "#202020")
     screen.pack()
 
     # Criar botao responsavel por chamar o corte de uma imagem
     btn_abrir_arquivo = Tk.Button(root, text = "Cortar Imagem", padx = 1, pady = 1, fg = "white", bg = "#00006F", command = abrir_imagem)
-    btn_abrir_arquivo.place(relwidth = 0.45, relheight = 0.8, relx = 0.02, rely = 0.1)
+    btn_abrir_arquivo.place(relwidth = 0.20, relheight = 0.8, relx = 0.02, rely = 0.1)
 
     # Criar botao resonsavel por selecionar imagens que serao comparadas 
     btn_comparar = Tk.Button(root, text = "Comparar", padx = 1, pady = 1, fg = "white", bg = "#00006F", command = comparar)
-    btn_comparar.place(relwidth = 0.45, relheight = 0.8, relx = 0.53, rely = 0.1)
+    btn_comparar.place(relwidth = 0.20, relheight = 0.8, relx = 0.23, rely = 0.1)
+
+    # Criar botao resonsavel por aumentar a quantidade de dados
+    btn_comparar = Tk.Button(root, text = "Aumentar dados", padx = 1, pady = 1, fg = "white", bg = "#00006F", command = aumentar_dados)
+    btn_comparar.place(relwidth = 0.20, relheight = 0.8, relx = 0.45, rely = 0.1)
 
 """
 Nome: construir_menu_principal
