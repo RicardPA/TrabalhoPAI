@@ -35,6 +35,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import tqdm
 from PIL import Image, ImageFilter
+from matplotlib.pyplot import figure
 
 warnings.filterwarnings("ignore")
 
@@ -53,21 +54,25 @@ def abrir_imagem():
 
     # Obter arquivo selecionado pelo usuario
     fileName = filedialog.askopenfilename(filetypes= (("PNG","*.png"), ("JPG","*.jpg")))
-    img = cv2.imread(fileName)
+    
+    if fileName != "":
+        img = cv2.imread(fileName)
 
-    # Obter extensao do arquivo selecionado
-    if (fileName[-4] == "."):
-        extensionFile = "." + fileName.split(".")[1] 
+        # Obter extensao do arquivo selecionado
+        if (fileName[-4] == "."):
+            extensionFile = "." + fileName.split(".")[1] 
 
-    # Rcomecar o menu caso nao exista imagem
-    if img is None:
-        abrir_menu()
+        # Rcomecar o menu caso nao exista imagem
+        if img is None:
+            abrir_menu()
 
-    # Disponibilizar corte da imagem 
+        # Disponibilizar corte da imagem 
+        else:
+            cv2.namedWindow("Imagem")
+            cv2.imshow("Imagem", img)
+            cv2.setMouseCallback("Imagem", cortar_imagem)
     else:
-        cv2.namedWindow("Imagem")
-        cv2.imshow("Imagem", img)
-        cv2.setMouseCallback("Imagem", cortar_imagem)
+        abrir_menu()
     
 
 """
@@ -93,13 +98,11 @@ def comparar():
     else:
         firstImg = cv2.cvtColor(firstImg, cv2.COLOR_BGR2GRAY)
         firstImg = cv2.equalizeHist(firstImg)
+
         # Obter extensao para obter proxima imgem
         if (fileNameFirst[-4] == "."):
             typeFileName = fileNameFirst.split(".")[1].upper() 
             extensionFile = "." + fileNameFirst.split(".")[1]
-            
-            # Obter caminho do primeiro arquivo
-            pathAndNameFirstImage = fileNameFirst.split(".")[0]
 
             # Reconhecer a extensao do arquivo e limitar proxima escolha
             if(typeFileName == "PNG"):
@@ -120,37 +123,14 @@ def comparar():
             secondImg = cv2.cvtColor(secondImg, cv2.COLOR_BGR2GRAY)
             secondImg = cv2.equalizeHist(secondImg)
 
-            # Obter  caminho do segundo arquivo
-            if (fileNameSecond[-4] == "."):
-                pathAndNameSecondImage = fileNameSecond.split(".")[0]
-
-            # Abrir imagem
-            imageProcessFirst = Image.open(r""+fileNameFirst)
-            imageProcessSecond = Image.open(r""+fileNameSecond) 
-
-            # Aplicar filtro para obter contorno da primeira imagem
-            
-            imageProcessFirst.save(r""+pathAndNameFirstImage+"Process"+extensionFile)
-
-            # Aplicar filtro para obter contorno da segunda imagem
-            
-            imageProcessSecond.save(r""+pathAndNameSecondImage+"Process"+extensionFile)
-
-            # Abrir imagem com contorno
-            processFirstImg = cv2.imread(pathAndNameFirstImage+"Process"+extensionFile)
-            processSecondImg = cv2.imread(pathAndNameSecondImage+"Process"+extensionFile)
-
-            # Remover imagens com contorno
-            os.remove(pathAndNameFirstImage+"Process"+extensionFile)
-            os.remove(pathAndNameSecondImage+"Process"+extensionFile)
+            secondImg = secondImg[
+                int(secondImg.shape[0]*0.20):int(secondImg.shape[0]*0.75), 
+                int(secondImg.shape[1]*0.05):int(secondImg.shape[1]*0.95)
+            ]
 
             # Comparar imagens
-            resultComparation = cv2.matchTemplate(processSecondImg, processFirstImg, cv2.TM_CCOEFF_NORMED)
+            resultComparation = cv2.matchTemplate(secondImg, firstImg, cv2.TM_CCORR_NORMED)
             (valueMin, valueMax, comparationMin, comparationMax) = cv2.minMaxLoc(resultComparation)
-            
-            # Apresentar imagens com contorno
-            #cv2.imshow("IMG(1)", processFirstImg)
-            #cv2.imshow("IMG(2)", processSecondImg)
 
             # Obter coordenadas do local de semelhanca da imagem
             (start_x, start_y) = comparationMax
@@ -172,22 +152,6 @@ def comparar():
             else:    
                 abrir_menu()
                 construir_menu_salvar_imagem()
-
-"""
-Nome: aplicar_histograma
-Funcao: Aplicar uma transformacao radiomatrica simplis na imagem
-"""
-
-def aplicar_histograma(img):
-    for k in range(0, 255):
-        for i in range(m):
-            for j in range(n):
-                if img[i, j]== k:
-                    if k - 20 < 0 : 
-                        img[i, j] = 0  
-                    else: 
-                        img[i, j] = k - 20
-    return img
 
 """
 Nome: cortar_imagem
@@ -327,7 +291,108 @@ def aumentar_dados():
                 os.chdir(filepathDestinyMirrored)
                 imageEspelhada.save(r""+"c"+arquivo)
                 os.chdir(filepath)
-    
+
+"""
+Nome: shufflenet
+Funcao: Aplicar o aprendizado shufflenet
+"""
+def shufflenet():
+    print("Em construcao")
+
+class ShuffleBlock(nn.Module):
+  def __init__(self, groups):
+    super(ShuffleBlock, self).__init__()
+    self.groups = groups
+  def forward(self, x):
+    N,C,H,W = x.size()
+    g = self.groups
+    return x.view(N, g, C//g, H, W).permute(0, 2, 1, 3, 4).reshape(N, C, H, W)
+
+class Bottleneck(nn.Module): 
+  def __init__(self, in_planes, out_planes, stride, groups):
+    super(Bottleneck, self).__init__()
+    self.stride = stride
+    mid_planes = int(out_planes/4)
+    g = 1 if in_planes == 24 else groups
+    self.conv1 = nn.Conv2d(in_planes, mid_planes, kernel_size=1, groups=g, bias=False)
+    self.bn1 = nn.BatchNorm2d(mid_planes)
+    self.shuffle1 = ShuffleBlock(groups= g)
+    self.conv2 = nn.Conv2d(mid_planes, mid_planes, kernel_size=3, stride=stride, padding=1, groups=mid_planes, bias=False)
+    self.bn2 = nn.BatchNorm2d(mid_planes)
+    self.conv3 = nn.Conv2d(mid_planes, out_planes, kernel_size=1, groups=groups, bias=False)
+    self.bn3 = nn.BatchNorm2d(out_planes)
+    self.shortcut = nn.Sequential()
+    if stride==2:
+      self.shortcut = nn.Sequential(nn.AvgPool2d(3,stride=2, padding =1))
+  def forward(self,x):
+    out = functions.relu(self.bn1(self.conv1(x)))
+    out = self.shuffle1(out)
+    out = functions.relu(self.bn2(self.conv2(out)))
+    out = self.bn3(self.conv3(out))
+    res = self.shortcut(x)
+    out = functions.relu(torch.cat([out,res], 1)) if self.stride==2 else functions.relu(out+res)
+    return out
+
+class ShuffleNet(nn.Module):
+  def __init__(self, cfg):
+    super(ShuffleNet, self).__init__()
+    out_planes = cfg['out_planes']
+    num_blocks = cfg['num_blocks']
+    groups = cfg['groups']
+    self.conv1 = nn.Conv2d(3, 24, kernel_size=1, bias = False)
+    self.bn1 = nn.BatchNorm2d(24)
+    self.in_planes = 24
+    self.layer1 = self._make_layer(out_planes[0], num_blocks[0], groups)
+    self.layer2 = self._make_layer(out_planes[1], num_blocks[1], groups)
+    self.layer3 = self._make_layer(out_planes[2], num_blocks[2], groups)
+    self.linear = nn.Linear(out_planes[2], 10) #10 as there are 10 classes
+
+  def _make_layer(self, out_planes, num_blocks, groups):
+    layers = []
+    for i in range(num_blocks):
+      stride = 2 if i == 0 else 1
+      cat_planes = self.in_planes if i==0 else 0
+      layers.append(Bottleneck(self.in_planes, out_planes-cat_planes, stride=stride, groups=groups))
+      self.in_planes = out_planes
+    return nn.Sequential(*layers)
+  
+  def forward(self,x):
+    out = functions.relu(self.bn1(self.conv1(x)))
+    out = self.layer1(out)
+    out = self.layer2(out)
+    out = self.layer3(out)
+    out = functions.avg_pool2d(out, 4)
+    out = out.view(out.size(0), -1)
+    out = self.linear(out)
+    return out
+
+def ShuffleNetG2():
+  cfg = {'out_planes': [200, 400, 800],
+         'num_blocks': [4, 8, 4],
+         'groups': 2
+         }
+  return ShuffleNet(cfg)
+
+def ShuffleNetG3():
+  cfg = {'out_planes': [240, 480, 960],
+         'num_blocks': [4, 8, 4],
+         'groups': 3
+         }
+  return ShuffleNet(cfg)
+
+#Shufflenet with groups = 2
+net2 = ShuffleNetG2()
+print("ShuffleNet with 2 Groups: " + str(net2))
+
+#Shufflenet with groups = 3
+net3 = ShuffleNetG3()
+print("ShuffleNet with 3 Groups: " + str(net3))
+#we will be using g=3 for training
+
+#Setting the model with CUDA
+if torch.cuda.is_available():
+  net3.cuda()
+
 # --- --- --- --- TELA PRINCIPAL / MENU --- --- --- ---
 
 """
@@ -360,22 +425,26 @@ def construir_menu_principal():
     # Configurar tela
     limpar_menu()
     root.title("Menu (Trabalho de PAI)");
-    root.minsize(600, 50)
-    root.maxsize(600, 50)
-    screen = Tk.Canvas(root, height = 50, width = 600, bg = "#202020")
+    root.minsize(450, 50)
+    root.maxsize(450, 50)
+    screen = Tk.Canvas(root, height = 50, width = 450, bg = "#202020")
     screen.pack()
 
     # Criar botao responsavel por chamar o corte de uma imagem
     btn_abrir_arquivo = Tk.Button(root, text = "Cortar Imagem", padx = 1, pady = 1, fg = "white", bg = "#00006F", command = abrir_imagem)
-    btn_abrir_arquivo.place(relwidth = 0.20, relheight = 0.8, relx = 0.02, rely = 0.1)
+    btn_abrir_arquivo.place(relwidth = 0.22, relheight = 0.8, relx = 0.02, rely = 0.1)
 
     # Criar botao resonsavel por selecionar imagens que serao comparadas 
     btn_comparar = Tk.Button(root, text = "Comparar", padx = 1, pady = 1, fg = "white", bg = "#00006F", command = comparar)
-    btn_comparar.place(relwidth = 0.20, relheight = 0.8, relx = 0.23, rely = 0.1)
+    btn_comparar.place(relwidth = 0.20, relheight = 0.8, relx = 0.25, rely = 0.1)
 
     # Criar botao resonsavel por aumentar a quantidade de dados
-    btn_comparar = Tk.Button(root, text = "Aumentar dados", padx = 1, pady = 1, fg = "white", bg = "#00006F", command = aumentar_dados)
-    btn_comparar.place(relwidth = 0.20, relheight = 0.8, relx = 0.45, rely = 0.1)
+    btn_aumentar_dados = Tk.Button(root, text = "Aumentar dados", padx = 1, pady = 1, fg = "white", bg = "#00006F", command = aumentar_dados)
+    btn_aumentar_dados.place(relwidth = 0.27, relheight = 0.8, relx = 0.46, rely = 0.1)
+
+    # Criar botao resonsavel por aumentar a quantidade de dados
+    btn_classificadores = Tk.Button(root, text = "Classificadores", padx = 1, pady = 1, fg = "white", bg = "#00006F", command = construir_menu_classificador)
+    btn_classificadores.place(relwidth = 0.24, relheight = 0.8, relx = 0.74, rely = 0.1)
 
 """
 Nome: construir_menu_principal
@@ -399,6 +468,24 @@ def construir_menu_salvar_imagem():
     # Criar botao com opcao de nao salvar 
     btn_nao_salvar = Tk.Button(root, text = "Não Salvar", padx = 1, pady = 1, fg = "white", bg = "RED", command = nao_salvar_imagem_gerada)
     btn_nao_salvar.place(relwidth = 0.4, relheight = 0.8, relx = 0.585, rely = 0.1)
+
+"""
+Nome: construir_menu_classificador
+Funcao: Criar menu com configuração reponsavel
+por disponibilizar os classificadores utilizados.
+"""
+def construir_menu_classificador():
+    # Configurar tela
+    limpar_menu()
+    root.title("Escolha o CLassificador");
+    root.minsize(220, 50)
+    root.maxsize(220, 50)
+    screen = Tk.Canvas(root, height = 50, width= 220, bg = "#202020")
+    screen.pack()
+
+    # Criar botao com opcao para salvar
+    btn_shufflenet = Tk.Button(root, text = "Shufflenet", padx = 1, pady = 1, fg = "white", bg = "#00006F", command = shufflenet)
+    btn_shufflenet.place(relwidth = 0.4, relheight = 0.8, relx = 0.02, rely = 0.1)
 
 construir_menu_principal() # Chamar primeira criacao/configuracao de tela
 root.mainloop() # Deixar tela aberta
