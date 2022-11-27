@@ -28,6 +28,7 @@ import tarfile
 import time
 import tkinter as Tk
 import warnings
+import scipy
 from asyncio.windows_events import NULL
 from logging import root
 from tkinter import filedialog
@@ -35,12 +36,14 @@ import cv2
 import matplotlib
 import matplotlib.pyplot as plt
 import tqdm
+from numpy import asarray
 from PIL import Image, ImageFilter
 from matplotlib.pyplot import figure
 
 
 # --- --- --- --- Declaracao do ShuffleNet --- --- --- ---
 # Variaveis globais necessarias
+root_path = './DataBase/.classifier'
 root_path_train = './DataBase/train'
 root_path_test = './DataBase/test/'
 # Se o computador tiver cuda usar a GPU
@@ -51,8 +54,9 @@ start_epoch = 0
 batch_size = 128
 weight_decay = 5e-4
 momentum = 0.9
-learning_rate = 0.01
+learning_rate = 0.005
 epoch_size = 60
+LABEL_MAP = {0:'Nivel: 0', 1:'Nivel: 1', 2:'Nivel: 2', 3:'Nivel: 3', 4:'Nivel: 4'}
 
 """
 Nome: ShuffleNet
@@ -125,6 +129,7 @@ class ShuffleNet(nn.Module):
         out = self.layer3(out)
         out = functions.avg_pool2d(out, 4)
         out = out.view(out.size(0), -1)
+
         out = self.linear(out)
         return out
 
@@ -148,13 +153,15 @@ net2 = ShuffleNetG2()
 #Shufflenet com grupos = 3
 net3 = ShuffleNetG3()
 
+if torch.cuda.is_available():
+  net3.cuda()
+
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net3.parameters(), lr = learning_rate ,momentum= momentum, weight_decay=weight_decay)
 
 def get_loss_acc(dataloader, is_test_dataset = True):
     net3.eval()
     # dataloader = test_loader if is_test_dataset else train-loader
-    global batch_size
     n_correct = 0
     n_total = 0
     test_loss = 0
@@ -170,7 +177,6 @@ def get_loss_acc(dataloader, is_test_dataset = True):
 
 def train_model(dataloader):
     net3.train()
-    global batch_size
     train_loss = 0
     n_correct = 0
     n_total = 0
@@ -212,11 +218,11 @@ def save_best_model(epoch, dataloader):
                 state = {'net': net3.state_dict(),
                          'acc': acc,
                          'epoch': epoch}
-            if not os.path.isdir('checkpoint'):
-                os.mkdir('checkpoint')
-            torch.save(state, './checkpoint/ckpt.pth')
-            torch.save(net3, './checkpoint/net3.pth')
-            best_acc = acc
+                if not os.path.isdir('checkpoint'):
+                    os.mkdir('checkpoint')
+                torch.save(state, './checkpoint/ckpt.pth')
+                torch.save(net3, './checkpoint/net3.pth')
+                best_acc = acc
 
 # --- --- --- --- Aplicacao --- --- --- ---
 
@@ -483,11 +489,12 @@ def aumentar_dados():
 
 """
 Nome: shufflenet
-Funcao: Aplicar o aprendizado shufflenet
+Funcao: Aplicar o aprendizado shufflenet.
 """
 def shufflenet():
     transform_train = transforms.Compose(transforms=[transforms.Pad(4),
                                          transforms.RandomHorizontalFlip(),
+                                         transforms.Resize((50, 50)),
                                          transforms.ToTensor(),
                                          transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
 
@@ -533,7 +540,89 @@ def shufflenet():
     f.close()
 
 
+"""
+Nome: apresentar_resultados
+Funcao: Mostrar resultados do aprendizado da rede.
+"""
+def apresentar_resultados_shufflenet():
+    tipo = 'cuda' if torch.cuda.is_available() else 'cpu'
+    net3 = torch.load('./checkpoint/net3.pth', map_location=torch.device(tipo))
 
+    transform_test = transforms.Compose(transforms=[transforms.Resize((50, 50)), transforms.ToTensor(),
+                                        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+
+    test_set = dsets.ImageFolder(root=root_path_test, transform=transform_test)
+
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=0, drop_last=False)
+
+    #Model Accuracy
+    total_correct = 0
+    total_images = 0
+    confusion_matrix = np.zeros([5,5], int)
+
+    with torch.no_grad():
+        for i,data in enumerate(test_loader):
+            images, labels = data
+            images, labels = images.to(device), labels.to(device)
+            outputs = net3(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total_images += labels.size(0)
+            total_correct += (predicted == labels).sum().item()
+            for i, l in enumerate(labels):
+                confusion_matrix[l.item(), predicted[i].item()] +=1
+
+    print('{0:5s} - {1}'.format('Category', 'Accuracy'))
+    for i, r in enumerate(confusion_matrix):
+      print('{0:5s} - {1:0.1f}'.format(LABEL_MAP[i], r[i]/np.sum(r)*100))
+    model_accuracy = total_correct/total_images *100
+    print('Model Accuracy on {0} test images : {1:.2f} %'.format(total_images, model_accuracy))
+
+    fig, axis = plt.subplots(1,1,figsize = (5,5))
+    axis.matshow(confusion_matrix, aspect='auto', vmin = 0, vmax = 1000, cmap= plt.get_cmap('Wistia'))
+    for (i, j), z in np.ndenumerate(confusion_matrix):
+        valor_linha = 0
+        for index in range(0 , 5):
+            valor_linha += confusion_matrix[i,index]
+        axis.text(j, i, '{:0.2f}'.format(z*100/valor_linha), ha='center', va='center')
+    plt.ylabel('Actual Category')
+    plt.yticks(range(5), LABEL_MAP.values())
+    plt.xlabel('Predicted Category')
+    plt.xticks(range(5), LABEL_MAP.values())
+    plt.rcParams.update({'font.size': 14})
+    plt.show()
+
+    classificar
+
+"""
+Nome: classificar_shufflenet
+Funcao: Pegar uma imagem e classificala por meio do que foi aprendido.
+"""
+def classificar_shufflenet():
+    tipo = 'cuda' if torch.cuda.is_available() else 'cpu'
+    net3 = torch.load('./checkpoint/net3.pth', map_location=torch.device("cpu"))
+
+    fileName = filedialog.askopenfilename(filetypes= (("PNG","*.png"), ("JPG","*.jpg")))
+    imagem = Image.open(r""+fileName)
+    nomePastaTotal = fileName.split('/')
+    nomePasta = nomePastaTotal[len(nomePastaTotal)-2]
+    path = root_path + '/' + nomePasta
+
+    os.chdir(path)
+    imagem.save(r""+"img.png")
+    os.chdir('./../../..')
+
+    transform_classifier = transforms.Compose(transforms=[transforms.Grayscale(num_output_channels=3),
+                                              transforms.Resize((50, 50)), transforms.ToTensor()])
+    outarray = transform_classifier(imagem)
+
+    class_mapping = ["0", "1", "2", "3", "4"]
+
+    net3.eval()
+    with torch.no_grad():
+        predictions = net3(torch.utils.data.DataLoader((outarray, nomePasta)))
+        predicted_index = predictions[0].argmax(0)
+        predicted = class_mapping[predicted_index]
+        print(predicted)
 
 # --- --- --- --- TELA PRINCIPAL / MENU --- --- --- ---
 
@@ -616,6 +705,33 @@ def construir_menu_salvar_imagem():
     btn_nao_salvar = Tk.Button(root, text = "Não Salvar", padx = 1, pady = 1,
                                fg = "white", bg = "RED", command = nao_salvar_imagem_gerada)
     btn_nao_salvar.place(relwidth = 0.4, relheight = 0.8, relx = 0.585, rely = 0.1)
+"""
+Nome: construir_menu_shufflenet
+Funcao: Criar menu com opcoes do classsificador.
+"""
+def construir_menu_shufflenet():
+    # Configurar tela
+    limpar_menu()
+    root.title("Escolha a Opcao - ShuffleNet");
+    root.minsize(380, 50)
+    root.maxsize(380, 50)
+    screen = Tk.Canvas(root, height = 50, width= 380, bg = "#202020")
+    screen.pack()
+
+    # Criar botao com opcao para salvar
+    btn_shufflenet = Tk.Button(root, text = "Treinar", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = shufflenet)
+    btn_shufflenet.place(relwidth = 0.25, relheight = 0.8, relx = 0.02, rely = 0.1)
+
+    # Criar botao com opcao para salvar
+    btn_shufflenet = Tk.Button(root, text = "Apresentar Resultados", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = apresentar_resultados_shufflenet)
+    btn_shufflenet.place(relwidth = 0.44, relheight = 0.8, relx = 0.28, rely = 0.1)
+
+    # Criar botao com opcao para salvar
+    btn_shufflenet = Tk.Button(root, text = "Classificar", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = classificar_shufflenet)
+    btn_shufflenet.place(relwidth = 0.25, relheight = 0.8, relx = 0.73, rely = 0.1)
 
 """
 Nome: construir_menu_classificador
@@ -633,8 +749,11 @@ def construir_menu_classificador():
 
     # Criar botao com opcao para salvar
     btn_shufflenet = Tk.Button(root, text = "Shufflenet", padx = 1, pady = 1,
-                               fg = "white", bg = "#00006F", command = shufflenet)
+                               fg = "white", bg = "#00006F", command = construir_menu_shufflenet)
     btn_shufflenet.place(relwidth = 0.4, relheight = 0.8, relx = 0.02, rely = 0.1)
+
+construir_menu_principal() # Chamar primeira criacao/configuracao de tela
+root.mainloop() # Deixar tela aberta
 
 construir_menu_principal() # Chamar primeira criacao/configuracao de tela
 root.mainloop() # Deixar tela aberta
