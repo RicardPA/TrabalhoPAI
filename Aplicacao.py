@@ -36,9 +36,12 @@ import cv2
 import matplotlib
 import matplotlib.pyplot as plt
 import tqdm
+import queue
+import torchvision.transforms.functional as TF
 from numpy import asarray
 from PIL import Image, ImageFilter
 from matplotlib.pyplot import figure
+from torch.utils.data import IterableDataset
 
 
 # --- --- --- --- Declaracao do ShuffleNet --- --- --- ---
@@ -224,6 +227,17 @@ def save_best_model(epoch, dataloader):
                 torch.save(net3, './checkpoint/net3.pth')
                 best_acc = acc
 
+class MyDataset(IterableDataset):
+    def __init__(self, image_queue):
+        self.queue = image_queue
+
+    def read_next_image(self):
+        while self.queue.qsize() > 0:
+            yield self.queue.get()
+        return None
+
+    def __iter__(self):
+        return self.read_next_image()
 # --- --- --- --- Aplicacao --- --- --- ---
 
 warnings.filterwarnings("ignore")
@@ -611,18 +625,24 @@ def classificar_shufflenet():
     imagem.save(r""+"img.png")
     os.chdir('./../../..')
 
-    transform_classifier = transforms.Compose(transforms=[transforms.Grayscale(num_output_channels=3),
-                                              transforms.Resize((50, 50)), transforms.ToTensor()])
-    outarray = transform_classifier(imagem)
+    buffer = queue.Queue()
+    new_input = Image.open(path + "/img.png")
+    transformacao = transforms.Compose(transforms=[transforms.Grayscale(num_output_channels=3),
+                                              transforms.Resize((50, 50))])
+    buffer.put(TF.to_tensor(transformacao(new_input)))
+
+    dataset = MyDataset(buffer)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1)
 
     class_mapping = ["0", "1", "2", "3", "4"]
 
-    net3.eval()
-    with torch.no_grad():
-        predictions = net3(torch.utils.data.DataLoader((outarray, nomePasta)))
+    for data in dataloader:
+        predictions = net3(data)
         predicted_index = predictions[0].argmax(0)
         predicted = class_mapping[predicted_index]
         print(predicted)
+
+    os.remove(path + "/img.png")
 
 # --- --- --- --- TELA PRINCIPAL / MENU --- --- --- ---
 
