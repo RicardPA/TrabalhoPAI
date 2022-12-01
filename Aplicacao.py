@@ -46,9 +46,9 @@ from torch.utils.data import IterableDataset
 
 # --- --- --- --- Declaracao do ShuffleNet --- --- --- ---
 # Variaveis globais necessarias
-root_path = './DataBase/.classifier'
+root_path = './classifier'
 root_path_train = './DataBase/train'
-root_path_test = './DataBase/test/'
+root_path_test = './DataBase/test'
 # Se o computador tiver cuda usar a GPU
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 #melhor acuracia de teste
@@ -212,12 +212,10 @@ def save_best_model(epoch, dataloader):
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct +=predicted.eq(targets).sum().item()
-            print(batch_idx, len(dataloader), 'Loss: %.3f | Acc: %0.3f%% (Correct classifications %d/Total classifications %d)' % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
             #save checkpoint
             acc =100.*correct/total
             if acc>best_acc:
-                print('Saving...')
                 state = {'net': net3.state_dict(),
                          'acc': acc,
                          'epoch': epoch}
@@ -238,6 +236,7 @@ class MyDataset(IterableDataset):
 
     def __iter__(self):
         return self.read_next_image()
+
 # --- --- --- --- Aplicacao --- --- --- ---
 
 warnings.filterwarnings("ignore")
@@ -508,18 +507,13 @@ Funcao: Aplicar o aprendizado shufflenet.
 def shufflenet():
     transform_train = transforms.Compose(transforms=[transforms.Pad(4),
                                          transforms.RandomHorizontalFlip(),
+                                         transforms.CenterCrop((90, 210)),
                                          transforms.Resize((50, 50)),
                                          transforms.ToTensor(),
                                          transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
 
-    transform_test = transforms.Compose(transforms=[transforms.ToTensor(),
-                                        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
-
     train_set = dsets.ImageFolder(root=root_path_train, transform=transform_train)
-    test_set = dsets.ImageFolder(root=root_path_test, transform=transform_test)
-
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=0, drop_last=False)
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=0, drop_last=False)
 
     f = open("./dadosShufflenet.txt", "w")
 
@@ -530,13 +524,13 @@ def shufflenet():
     train_accuracy_list = []
     test_accuracy_list = []
 
-    print('INICIO DO TREINAMENTO')
+    info = ('INICIO DO TREINAMENTO')
     for epoch_i in range(start_epoch, start_epoch + EPOCH):
       global accuracy_list
       current_learning_rate = [i['lr'] for i in optimizer.param_groups][0]
       # Mostrar e arquivar dados de aprendizado
+      info += '\n' + ('Batch Size' + str(batch_size) + '(' + str((dt.datetime.now() - start).seconds) + ')\n\nEpoch: ' + str(epoch_i +1) + '/' + str(EPOCH+start_epoch) + ' | Current Learning Rate: ' + str(current_learning_rate))
       f.write('Batch Size' + str(batch_size) + '(' + str((dt.datetime.now() - start).seconds) + ')\n\nEpoch: ' + str(epoch_i +1) + '/' + str(EPOCH+start_epoch) + ' | Current Learning Rate: ' + str(current_learning_rate))
-      print('Batch Size', batch_size, '(%0.2fs)\n\nEpoch: %d/%d | Current Learning Rate: %.4f ' % ((dt.datetime.now() - start).seconds, epoch_i +1, EPOCH+start_epoch , current_learning_rate))
 
       start = dt.datetime.now()
       test_loss, test_acc = get_loss_acc(train_loader)
@@ -546,12 +540,14 @@ def shufflenet():
       save_best_model(epoch_i, train_loader)
 
       # Mostrar e arquivar dados de aprendizado
-      print('Train Loss: %.3f | Acc: %.3f%% \nTest Loss: %0.3f | Acc: %0.3f%% \n\n' % (train_loss, train_acc*100, test_loss, test_acc*100))
+      info += '\n' + ('Train Loss: ' + str(train_loss) + ' | Acc: ' + str(train_acc*100) + ' \nTest Loss: ' + str(test_loss) + ' | Acc: ' + str(test_acc*100) + ' \n\n')
       f.write('Train Loss: ' + str(train_loss) + ' | Acc: ' + str(train_acc*100) + ' \nTest Loss: ' + str(test_loss) + ' | Acc: ' + str(test_acc*100) + ' \n\n')
 
-    print('\n\nTotal Training time: %0.2f minutes ' %((dt.datetime.now() - training_time).seconds/60))
+    info += '\n' + ('\n\nTotal Training time: ' + str((dt.datetime.now() - training_time).seconds/60) + ' minutes ')
     f.write('\n\nTotal Training time: ' + str((dt.datetime.now() - training_time).seconds/60) + ' minutes ')
     f.close()
+
+    apresentar_dados(info)
 
 
 """
@@ -562,8 +558,11 @@ def apresentar_resultados_shufflenet():
     tipo = 'cuda' if torch.cuda.is_available() else 'cpu'
     net3 = torch.load('./checkpoint/net3.pth', map_location=torch.device(tipo))
 
-    transform_test = transforms.Compose(transforms=[transforms.Resize((50, 50)), transforms.ToTensor(),
-                                        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+    transform_test = transforms.Compose(transforms=[transforms.CenterCrop((90, 210)),
+                                                    transforms.Resize((50, 50)),
+                                                    transforms.ToTensor(),
+                                                    transforms.Normalize((0.4914, 0.4822, 0.4465),
+                                                    (0.2023, 0.1994, 0.2010))])
 
     test_set = dsets.ImageFolder(root=root_path_test, transform=transform_test)
 
@@ -585,11 +584,38 @@ def apresentar_resultados_shufflenet():
             for i, l in enumerate(labels):
                 confusion_matrix[l.item(), predicted[i].item()] +=1
 
-    print('{0:5s} - {1}'.format('Category', 'Accuracy'))
-    for i, r in enumerate(confusion_matrix):
-      print('{0:5s} - {1:0.1f}'.format(LABEL_MAP[i], r[i]/np.sum(r)*100))
+    vp = np.zeros(5, int)
+    vn = np.zeros(5, int)
+    fp = np.zeros(5, int)
+    fn = np.zeros(5, int)
+
+    for i in range(0, 5):
+        for j in range(0, 5):
+            for k in range(0, 5):
+                if i == k and j == k:
+                    vp[k] += confusion_matrix[i, j];
+
+                if i != k and j == k:
+                    fp[k] += confusion_matrix[i, j]
+
+                if i == k and j != k:
+                    fn[i] += confusion_matrix[i, j];
+
+                if i != k and j != k:
+                    vn[k] += confusion_matrix[i, j]
+
+    info = ('{0:5s} - {1:5s} - {2:5s} - {3:5s} - {4}'.format('Acuracia', 'Sensibilidade', 'Especificidade', 'Precisão', 'Score F1'))
+    for i in range(0, 5):
+        acuracia = ((vp[i] + vn[i])/(vp[i] + vn[i] + fp[i] + fn[i]))*100
+        sensibilidade = (vp[i]/(vp[i] + fn[i]))*100
+        especificidade = (vn[i]/(vn[i] + fp[i]))*100
+        precisao = (vp[i]/(vp[i]+fp[i]))*100
+        scoref1 = ((2*vp[i])/((2*vp[i])+fp[i]+fn[i]))*100
+        info += '\n' + ('{0:5s} - {1:0.1f}% - {2:0.1f}% - {3:0.1f}% - {4:0.1f}% - {5:0.1f}%'.format(LABEL_MAP[i], acuracia, sensibilidade, especificidade, precisao, scoref1))
     model_accuracy = total_correct/total_images *100
-    print('Model Accuracy on {0} test images : {1:.2f} %'.format(total_images, model_accuracy))
+    info += '\n\n' + ('Acuracia do Modelo com {0} no teste : {1:.2f} %'.format(total_images, model_accuracy))
+
+    apresentar_dados(info)
 
     fig, axis = plt.subplots(1,1,figsize = (5,5))
     axis.matshow(confusion_matrix, aspect='auto', vmin = 0, vmax = 1000, cmap= plt.get_cmap('Wistia'))
@@ -604,8 +630,6 @@ def apresentar_resultados_shufflenet():
     plt.xticks(range(5), LABEL_MAP.values())
     plt.rcParams.update({'font.size': 14})
     plt.show()
-
-    classificar
 
 """
 Nome: classificar_shufflenet
@@ -623,12 +647,15 @@ def classificar_shufflenet():
 
     os.chdir(path)
     imagem.save(r""+"img.png")
-    os.chdir('./../../..')
+    os.chdir('./../..')
 
     buffer = queue.Queue()
     new_input = Image.open(path + "/img.png")
+
     transformacao = transforms.Compose(transforms=[transforms.Grayscale(num_output_channels=3),
+                                              transforms.CenterCrop((90, 210)),
                                               transforms.Resize((50, 50))])
+
     buffer.put(TF.to_tensor(transformacao(new_input)))
 
     dataset = MyDataset(buffer)
@@ -640,9 +667,58 @@ def classificar_shufflenet():
         predictions = net3(data)
         predicted_index = predictions[0].argmax(0)
         predicted = class_mapping[predicted_index]
-        print(predicted)
+
+    apresentar_dados("Joelho cassificado como: " + str(predicted) +
+                     "\nJoelho da classe: " + nomePasta)
 
     os.remove(path + "/img.png")
+
+"""
+Nome: SVM
+Funcao: Implemtar aprendizado profundo na aplicacao, utilizando o
+svm como IA.
+Descricao: Construcao do algoritmo svm.
+"""
+def SVM():
+    fileNameFirst = filedialog.askopenfilename(
+                    title = "Selecione a primeira imagem para comparação",
+                    filetypes= (("PNG","*.png"), ("JPG","*.jpg")))
+
+    firstImg = cv2.imread(fileNameFirst)
+
+    gray = cv2.cvtColor(firstImg, cv2.COLOR_BGR2GRAY)
+
+    gray = cv2.equalizeHist(gray)
+
+    ret, thresh = cv2.threshold(gray, 0, 255,
+                                cv2.THRESH_BINARY_INV +
+                                cv2.THRESH_OTSU)
+
+    cv2.imshow('image1', firstImg)
+    cv2.imshow('image2', thresh)
+
+    print("EM CONSTRUCAO")
+
+def apresentar_resultados_svm():
+    print("EM CONSTRUCAO")
+
+def classificar_svm():
+    print("EM CONSTRUCAO")
+
+"""
+Nome: XGBoost
+Funcao: Implemtar aprendizado profundo na aplicacao, utilizando o
+XGBoost como IA.
+Descricao: Construcao do algoritmo XGBoost.
+"""
+def XGBoost():
+    print("EM CONSTRUCAO")
+
+def apresentar_resultados_xgboost():
+    print("EM CONSTRUCAO")
+
+def classificar_xgboost():
+    print("EM CONSTRUCAO")
 
 # --- --- --- --- TELA PRINCIPAL / MENU --- --- --- ---
 
@@ -702,6 +778,40 @@ def construir_menu_principal():
     btn_classificadores.place(relwidth = 0.24, relheight = 0.8, relx = 0.74, rely = 0.1)
 
 """
+Nome: construir_menu_classificador
+Funcao: Criar menu com configuração reponsavel
+por disponibilizar os classificadores utilizados.
+"""
+def construir_menu_classificador():
+    # Configurar tela
+    limpar_menu()
+    root.title("Escolha o CLassificador");
+    root.minsize(330, 50)
+    root.maxsize(330, 50)
+    screen = Tk.Canvas(root, height = 50, width= 330, bg = "#202020")
+    screen.pack()
+
+    # Criar botao para voltar o menu principal
+    btn_shufflenet = Tk.Button(root, text = "<", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = construir_menu_principal)
+    btn_shufflenet.place(relwidth = 0.10, relheight = 0.8, relx = 0.02, rely = 0.1)
+
+    # Criar botao para disponibilizar o menu do shufflenet
+    btn_shufflenet = Tk.Button(root, text = "Shufflenet", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = construir_menu_shufflenet)
+    btn_shufflenet.place(relwidth = 0.31, relheight = 0.8, relx = 0.13, rely = 0.1)
+
+    # Criar botao para disponibilizar o menu do svm
+    btn_shufflenet = Tk.Button(root, text = "SVM", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = construir_menu_svm)
+    btn_shufflenet.place(relwidth = 0.23, relheight = 0.8, relx = 0.45, rely = 0.1)
+
+    # Criar botao para disponibilizar o menu do xgboost
+    btn_shufflenet = Tk.Button(root, text = "XGBoost", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = construir_menu_xgboost)
+    btn_shufflenet.place(relwidth = 0.29, relheight = 0.8, relx = 0.69, rely = 0.1)
+
+"""
 Nome: construir_menu_principal
 Funcao: Criar menu com configuração reponsavel
 por salvar a imagem obtida pelo corte e a imagem
@@ -725,6 +835,7 @@ def construir_menu_salvar_imagem():
     btn_nao_salvar = Tk.Button(root, text = "Não Salvar", padx = 1, pady = 1,
                                fg = "white", bg = "RED", command = nao_salvar_imagem_gerada)
     btn_nao_salvar.place(relwidth = 0.4, relheight = 0.8, relx = 0.585, rely = 0.1)
+
 """
 Nome: construir_menu_shufflenet
 Funcao: Criar menu com opcoes do classsificador.
@@ -738,42 +849,112 @@ def construir_menu_shufflenet():
     screen = Tk.Canvas(root, height = 50, width= 380, bg = "#202020")
     screen.pack()
 
-    # Criar botao com opcao para salvar
+    # Criar botao para voltar o menu principal
+    btn_shufflenet = Tk.Button(root, text = "<", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = construir_menu_classificador)
+    btn_shufflenet.place(relwidth = 0.10, relheight = 0.8, relx = 0.02, rely = 0.1)
+
+    # Treina o classificador
     btn_shufflenet = Tk.Button(root, text = "Treinar", padx = 1, pady = 1,
                                fg = "white", bg = "#00006F", command = shufflenet)
-    btn_shufflenet.place(relwidth = 0.25, relheight = 0.8, relx = 0.02, rely = 0.1)
+    btn_shufflenet.place(relwidth = 0.2, relheight = 0.8, relx = 0.13, rely = 0.1)
 
-    # Criar botao com opcao para salvar
+    # Apresenta os resultados dos testes do treinamento
     btn_shufflenet = Tk.Button(root, text = "Apresentar Resultados", padx = 1, pady = 1,
                                fg = "white", bg = "#00006F", command = apresentar_resultados_shufflenet)
-    btn_shufflenet.place(relwidth = 0.44, relheight = 0.8, relx = 0.28, rely = 0.1)
+    btn_shufflenet.place(relwidth = 0.4, relheight = 0.8, relx = 0.34, rely = 0.1)
 
-    # Criar botao com opcao para salvar
+    # Possibilita classificar uma imagem selecionada
     btn_shufflenet = Tk.Button(root, text = "Classificar", padx = 1, pady = 1,
                                fg = "white", bg = "#00006F", command = classificar_shufflenet)
-    btn_shufflenet.place(relwidth = 0.25, relheight = 0.8, relx = 0.73, rely = 0.1)
+    btn_shufflenet.place(relwidth = 0.23, relheight = 0.8, relx = 0.75, rely = 0.1)
 
 """
-Nome: construir_menu_classificador
-Funcao: Criar menu com configuração reponsavel
-por disponibilizar os classificadores utilizados.
+Nome: construir_menu_svm
+Funcao: Criar menu com opcoes do classsificador.
 """
-def construir_menu_classificador():
+def construir_menu_svm():
     # Configurar tela
     limpar_menu()
-    root.title("Escolha o CLassificador");
-    root.minsize(220, 50)
-    root.maxsize(220, 50)
-    screen = Tk.Canvas(root, height = 50, width= 220, bg = "#202020")
+    root.title("Escolha a Opcao - SVM");
+    root.minsize(380, 50)
+    root.maxsize(380, 50)
+    screen = Tk.Canvas(root, height = 50, width= 380, bg = "#202020")
     screen.pack()
 
-    # Criar botao com opcao para salvar
-    btn_shufflenet = Tk.Button(root, text = "Shufflenet", padx = 1, pady = 1,
-                               fg = "white", bg = "#00006F", command = construir_menu_shufflenet)
-    btn_shufflenet.place(relwidth = 0.4, relheight = 0.8, relx = 0.02, rely = 0.1)
+    # Criar botao para voltar o menu principal
+    btn_shufflenet = Tk.Button(root, text = "<", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = construir_menu_classificador)
+    btn_shufflenet.place(relwidth = 0.10, relheight = 0.8, relx = 0.02, rely = 0.1)
 
-construir_menu_principal() # Chamar primeira criacao/configuracao de tela
-root.mainloop() # Deixar tela aberta
+    # Treina o classificador
+    btn_shufflenet = Tk.Button(root, text = "Treinar", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = SVM)
+    btn_shufflenet.place(relwidth = 0.2, relheight = 0.8, relx = 0.13, rely = 0.1)
+
+    # Apresenta os resultados dos testes do treinamento
+    btn_shufflenet = Tk.Button(root, text = "Apresentar Resultados", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = apresentar_resultados_svm)
+    btn_shufflenet.place(relwidth = 0.4, relheight = 0.8, relx = 0.34, rely = 0.1)
+
+    # Possibilita classificar uma imagem selecionada
+    btn_shufflenet = Tk.Button(root, text = "Classificar", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = classificar_svm)
+    btn_shufflenet.place(relwidth = 0.23, relheight = 0.8, relx = 0.75, rely = 0.1)
+
+"""
+Nome: construir_menu_xgboost
+Funcao: Criar menu com opcoes do classsificador.
+"""
+def construir_menu_xgboost():
+    # Configurar tela
+    limpar_menu()
+    root.title("Escolha a Opcao - XGBoost");
+    root.minsize(380, 50)
+    root.maxsize(380, 50)
+    screen = Tk.Canvas(root, height = 50, width= 380, bg = "#202020")
+    screen.pack()
+
+    # Criar botao para voltar o menu principal
+    btn_shufflenet = Tk.Button(root, text = "<", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = construir_menu_classificador)
+    btn_shufflenet.place(relwidth = 0.10, relheight = 0.8, relx = 0.02, rely = 0.1)
+
+    # Treina o classificador
+    btn_shufflenet = Tk.Button(root, text = "Treinar", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = XGBoost)
+    btn_shufflenet.place(relwidth = 0.2, relheight = 0.8, relx = 0.13, rely = 0.1)
+
+    # Apresenta os resultados dos testes do treinamento
+    btn_shufflenet = Tk.Button(root, text = "Apresentar Resultados", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = apresentar_resultados_xgboost)
+    btn_shufflenet.place(relwidth = 0.4, relheight = 0.8, relx = 0.34, rely = 0.1)
+
+    # Possibilita classificar uma imagem selecionada
+    btn_shufflenet = Tk.Button(root, text = "Classificar", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = classificar_xgboost)
+    btn_shufflenet.place(relwidth = 0.23, relheight = 0.8, relx = 0.75, rely = 0.1)
+
+"""
+Nome: construir_menu_shufflenet
+Funcao: Criar menu com opcoes do classsificador.
+"""
+def apresentar_dados(info):
+    # Configurar tela
+    limpar_menu()
+    root.title("Informações");
+    root.minsize(380, 500)
+    root.maxsize(380, 500)
+    screen = Tk.Canvas(root, height = 500, width= 380, bg = "#202020")
+    screen.pack()
+
+    accuracy = Tk.Label(root, text= str(info), bg = "#202020", fg = "white")
+    accuracy.place(relwidth = 0.98, relheight = 0.88, relx = 0.01, rely = 0.01)
+
+    # Criar botao para voltar o menu principal
+    btn_shufflenet = Tk.Button(root, text = "Voltar", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = construir_menu_classificador)
+    btn_shufflenet.place(relwidth = 0.98, relheight = 0.10, relx = 0.01, rely = 0.89)
 
 construir_menu_principal() # Chamar primeira criacao/configuracao de tela
 root.mainloop() # Deixar tela aberta
