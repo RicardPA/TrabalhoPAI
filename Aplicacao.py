@@ -6,6 +6,7 @@ Alunos:
 * Ricardo Portilho de Andrade
 """
 
+# Bibliotecas utilizadas no Aprendizado de Maquina
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
@@ -15,40 +16,53 @@ from torchsummary import summary
 from torch import nn, optim
 import torch.nn.functional as functions
 import torchvision
+from torch.utils.data import IterableDataset
+import torchvision.transforms.functional as TF
 
+# Tratamento de dados
 import numpy as np
-import pandas as pd
+from numpy import asarray
+#import pandas as pd
+
+# Utilizado em classificadores
+import sklearn
+from sklearn.model_selection import train_test_split
+from xgboost import XGBClassifier
+from sklearn import svm
+from sklearn import metrics
+from sklearn import preprocessing
+
+# Criacao de telas
+import tkinter as Tk
+from tkinter import filedialog
+
+# Manipulacao de arquivos e imagens
+import os
+import cv2
+import glob
+import pickle
+from PIL import Image, ImageFilter
+
+# Plotar graficos
+import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib.pyplot import figure
 
 import datetime as dt
-import math
-import os
-import glob
-import sys
-import tarfile
-import time
-import tkinter as Tk
 import warnings
 import scipy
 from asyncio.windows_events import NULL
 from logging import root
-from tkinter import filedialog
-import cv2
-import matplotlib
-import matplotlib.pyplot as plt
 import tqdm
 import queue
-import torchvision.transforms.functional as TF
-from numpy import asarray
-from PIL import Image, ImageFilter
-from matplotlib.pyplot import figure
-from torch.utils.data import IterableDataset
+
 
 
 # --- --- --- --- Declaracao do ShuffleNet --- --- --- ---
 # Variaveis globais necessarias
-root_path = './classifier'
 root_path_train = './DataBase/train'
 root_path_test = './DataBase/test'
+root_path_val = './DataBase/val'
 # Se o computador tiver cuda usar a GPU
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 #melhor acuracia de teste
@@ -524,12 +538,10 @@ def shufflenet():
     train_accuracy_list = []
     test_accuracy_list = []
 
-    info = ('INICIO DO TREINAMENTO')
     for epoch_i in range(start_epoch, start_epoch + EPOCH):
       global accuracy_list
       current_learning_rate = [i['lr'] for i in optimizer.param_groups][0]
-      # Mostrar e arquivar dados de aprendizado
-      info += '\n' + ('Batch Size' + str(batch_size) + '(' + str((dt.datetime.now() - start).seconds) + ')\n\nEpoch: ' + str(epoch_i +1) + '/' + str(EPOCH+start_epoch) + ' | Current Learning Rate: ' + str(current_learning_rate))
+      # Arquivar dados de aprendizado
       f.write('Batch Size' + str(batch_size) + '(' + str((dt.datetime.now() - start).seconds) + ')\n\nEpoch: ' + str(epoch_i +1) + '/' + str(EPOCH+start_epoch) + ' | Current Learning Rate: ' + str(current_learning_rate))
 
       start = dt.datetime.now()
@@ -539,16 +551,14 @@ def shufflenet():
       test_accuracy_list.append(test_acc*100)
       save_best_model(epoch_i, train_loader)
 
-      # Mostrar e arquivar dados de aprendizado
-      info += '\n' + ('Train Loss: ' + str(train_loss) + ' | Acc: ' + str(train_acc*100) + ' \nTest Loss: ' + str(test_loss) + ' | Acc: ' + str(test_acc*100) + ' \n\n')
+      # Arquivar dados de aprendizado
       f.write('Train Loss: ' + str(train_loss) + ' | Acc: ' + str(train_acc*100) + ' \nTest Loss: ' + str(test_loss) + ' | Acc: ' + str(test_acc*100) + ' \n\n')
 
-    info += '\n' + ('\n\nTotal Training time: ' + str((dt.datetime.now() - training_time).seconds/60) + ' minutes ')
     f.write('\n\nTotal Training time: ' + str((dt.datetime.now() - training_time).seconds/60) + ' minutes ')
     f.close()
 
-    apresentar_dados(info)
-
+    apresentar_dados("FIM DO TREINAMENTO"+
+    "\n* As informações do treinamento estão armazenadas no arquivo (./dadosShufflenet.txt).")
 
 """
 Nome: apresentar_resultados
@@ -558,7 +568,8 @@ def apresentar_resultados_shufflenet():
     tipo = 'cuda' if torch.cuda.is_available() else 'cpu'
     net3 = torch.load('./checkpoint/net3.pth', map_location=torch.device(tipo))
 
-    transform_test = transforms.Compose(transforms=[transforms.CenterCrop((90, 210)),
+    transform_test = transforms.Compose(transforms=[transforms.Resize((224, 224)),
+                                                    transforms.CenterCrop((90, 210)),
                                                     transforms.Resize((50, 50)),
                                                     transforms.ToTensor(),
                                                     transforms.Normalize((0.4914, 0.4822, 0.4465),
@@ -584,11 +595,13 @@ def apresentar_resultados_shufflenet():
             for i, l in enumerate(labels):
                 confusion_matrix[l.item(), predicted[i].item()] +=1
 
+    # Criar vetor para armazenar os valores da formular
     vp = np.zeros(5, int)
     vn = np.zeros(5, int)
     fp = np.zeros(5, int)
     fn = np.zeros(5, int)
 
+    # pegar o valor para cada classe
     for i in range(0, 5):
         for j in range(0, 5):
             for k in range(0, 5):
@@ -604,6 +617,7 @@ def apresentar_resultados_shufflenet():
                 if i != k and j != k:
                     vn[k] += confusion_matrix[i, j]
 
+    # Apresentar resultados do treino
     info = ('{0:5s} - {1:5s} - {2:5s} - {3:5s} - {4}'.format('Acuracia', 'Sensibilidade', 'Especificidade', 'Precisão', 'Score F1'))
     for i in range(0, 5):
         acuracia = ((vp[i] + vn[i])/(vp[i] + vn[i] + fp[i] + fn[i]))*100
@@ -617,6 +631,7 @@ def apresentar_resultados_shufflenet():
 
     apresentar_dados(info)
 
+    # Mostrar matriz de confusao
     fig, axis = plt.subplots(1,1,figsize = (5,5))
     axis.matshow(confusion_matrix, aspect='auto', vmin = 0, vmax = 1000, cmap= plt.get_cmap('Wistia'))
     for (i, j), z in np.ndenumerate(confusion_matrix):
@@ -643,20 +658,15 @@ def classificar_shufflenet():
     imagem = Image.open(r""+fileName)
     nomePastaTotal = fileName.split('/')
     nomePasta = nomePastaTotal[len(nomePastaTotal)-2]
-    path = root_path + '/' + nomePasta
-
-    os.chdir(path)
-    imagem.save(r""+"img.png")
-    os.chdir('./../..')
 
     buffer = queue.Queue()
-    new_input = Image.open(path + "/img.png")
 
     transformacao = transforms.Compose(transforms=[transforms.Grayscale(num_output_channels=3),
+                                              transforms.Resize((224, 224)),
                                               transforms.CenterCrop((90, 210)),
                                               transforms.Resize((50, 50))])
 
-    buffer.put(TF.to_tensor(transformacao(new_input)))
+    buffer.put(TF.to_tensor(transformacao(imagem)))
 
     dataset = MyDataset(buffer)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=1)
@@ -671,8 +681,6 @@ def classificar_shufflenet():
     apresentar_dados("Joelho cassificado como: " + str(predicted) +
                      "\nJoelho da classe: " + nomePasta)
 
-    os.remove(path + "/img.png")
-
 """
 Nome: SVM
 Funcao: Implemtar aprendizado profundo na aplicacao, utilizando o
@@ -680,13 +688,240 @@ svm como IA.
 Descricao: Construcao do algoritmo svm.
 """
 def SVM():
-    fileNameFirst = filedialog.askopenfilename(
-                    title = "Selecione a primeira imagem para comparação",
-                    filetypes= (("PNG","*.png"), ("JPG","*.jpg")))
+    data = []
+    target = []
 
-    firstImg = cv2.imread(fileNameFirst)
+    for i, _, arquivos in os.walk(root_path_train):
+        for arquivo in arquivos:
+            i_aux = str(i).replace("\\", "/")
+            nomePastaTotal = i_aux.split('/')
+            nomePasta = nomePastaTotal[len(nomePastaTotal)-1]
 
-    gray = cv2.cvtColor(firstImg, cv2.COLOR_BGR2GRAY)
+            imagem = Image.open(r""+i_aux+'/'+arquivo)
+
+            transformacao = transforms.Compose(transforms=[transforms.Grayscale(num_output_channels=3),
+                                                      transforms.Resize((224, 224)),
+                                                      transforms.CenterCrop((90, 220))])
+
+            imagem = transformacao(imagem)
+
+            imagem = np.array(imagem)
+
+            gray = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
+
+            gray = cv2.equalizeHist(gray)
+
+            ret, thresh = cv2.threshold(gray, 0, 255,
+                                        cv2.THRESH_BINARY_INV +
+                                        cv2.THRESH_OTSU)
+
+            kernel = np.ones((3, 3), np.uint8)
+
+            closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE,
+                                        kernel, iterations = 2)
+
+            bg = cv2.dilate(closing, kernel, iterations = 1)
+
+            dist_transform = cv2.distanceTransform(closing, cv2.DIST_L2, 0)
+
+            ret, imagem = cv2.threshold(dist_transform, 0.02
+                                    * dist_transform.max(), 255, 0)
+
+            data.append(imagem)
+            target.append(nomePasta)
+
+    for i, _, arquivos in os.walk(root_path_test):
+        for arquivo in arquivos:
+            i_aux = str(i).replace("\\", "/")
+            nomePastaTotal = i_aux.split('/')
+            nomePasta = nomePastaTotal[len(nomePastaTotal)-1]
+
+            imagem = Image.open(r""+i_aux+'/'+arquivo)
+
+            transformacao = transforms.Compose(transforms=[transforms.Grayscale(num_output_channels=3),
+                                                      transforms.Resize((224, 224)),
+                                                      transforms.CenterCrop((90, 220))])
+
+            imagem = transformacao(imagem)
+
+            imagem = np.array(imagem)
+
+            gray = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
+
+            gray = cv2.equalizeHist(gray)
+
+            ret, thresh = cv2.threshold(gray, 0, 255,
+                                        cv2.THRESH_BINARY_INV +
+                                        cv2.THRESH_OTSU)
+
+            kernel = np.ones((3, 3), np.uint8)
+
+            closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE,
+                                        kernel, iterations = 2)
+
+            bg = cv2.dilate(closing, kernel, iterations = 1)
+
+            dist_transform = cv2.distanceTransform(closing, cv2.DIST_L2, 0)
+
+            ret, imagem = cv2.threshold(dist_transform, 0.02
+                                    * dist_transform.max(), 255, 0)
+
+            data.append(imagem)
+            target.append(nomePasta)
+
+    X_train = np.array(data)
+    nsamples = X_train.shape[0]
+    nx = X_train.shape[1]
+    ny = X_train.shape[2]
+    X_train = X_train.reshape((nsamples,nx*ny))
+
+    training_time = dt.datetime.now()
+
+    clf = svm.SVC(kernel='linear', max_iter=60)
+
+    clf.fit(X_train, target)
+
+    pickle.dump(clf, open('./checkpoint/svm.sav', 'wb'))
+
+def apresentar_resultados_svm():
+    data = []
+    target = []
+    dados = {
+        'info': '',
+        'matriz': np.zeros([5,5], int)
+    }
+
+    if os.path.exists('./dados/svm.sav') and os.stat("./dados/svm.sav").st_size != 0:
+        dados = pickle.load(open('./dados/svm.sav', 'rb'))
+
+    else:
+        for i, _, arquivos in os.walk(root_path_val):
+            for arquivo in arquivos:
+                i_aux = str(i).replace("\\", "/")
+                nomePastaTotal = i_aux.split('/')
+                nomePasta = nomePastaTotal[len(nomePastaTotal)-1]
+
+                imagem = Image.open(r""+i_aux+'/'+arquivo)
+
+                transformacao = transforms.Compose(transforms=[transforms.Grayscale(num_output_channels=3),
+                                                          transforms.Resize((224, 224)),
+                                                          transforms.CenterCrop((90, 220))])
+
+                imagem = transformacao(imagem)
+
+                imagem = np.array(imagem)
+
+                gray = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
+
+                gray = cv2.equalizeHist(gray)
+
+                ret, thresh = cv2.threshold(gray, 0, 255,
+                                            cv2.THRESH_BINARY_INV +
+                                            cv2.THRESH_OTSU)
+
+                kernel = np.ones((3, 3), np.uint8)
+
+                closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE,
+                                            kernel, iterations = 2)
+
+                bg = cv2.dilate(closing, kernel, iterations = 1)
+
+                dist_transform = cv2.distanceTransform(closing, cv2.DIST_L2, 0)
+
+                ret, imagem = cv2.threshold(dist_transform, 0.02
+                                        * dist_transform.max(), 255, 0)
+
+                data.append(imagem)
+                target.append(nomePasta)
+
+        X_test = np.array(data)
+        nsamples = X_test.shape[0]
+        nx = X_test.shape[1]
+        ny = X_test.shape[2]
+        X_test = X_test.reshape((nsamples,nx*ny))
+
+        clf = pickle.load(open('./checkpoint/svm.sav', 'rb'))
+        y_pred = clf.predict(X_test)
+
+        # Criar vetor para armazenar os valores da formular
+        vp = np.zeros(5, int)
+        vn = np.zeros(5, int)
+        fp = np.zeros(5, int)
+        fn = np.zeros(5, int)
+        confusion_matrix = np.zeros([5,5], int)
+
+        for i in range(0, len(target)):
+            x = int(target[i])
+            y = int(y_pred[i])
+            confusion_matrix[x, y] = confusion_matrix[x, y] + 1
+
+        dados['matriz'] = confusion_matrix
+
+        # pegar o valor para cada classe
+        for i in range(0, 5):
+            for j in range(0, 5):
+                for k in range(0, 5):
+                    if i == k and j == k:
+                        vp[k] += confusion_matrix[i, j];
+
+                    if i != k and j == k:
+                        fp[k] += confusion_matrix[i, j]
+
+                    if i == k and j != k:
+                        fn[i] += confusion_matrix[i, j];
+
+                    if i != k and j != k:
+                        vn[k] += confusion_matrix[i, j]
+
+        # Apresentar resultados do treino
+        info = ('{0:5s} - {1:5s} - {2:5s} - {3:5s} - {4}'.format('Acuracia', 'Sensibilidade', 'Especificidade', 'Precisão', 'Score F1'))
+        for i in range(0, 5):
+            acuracia = ((vp[i] + vn[i])/(vp[i] + vn[i] + fp[i] + fn[i]))*100
+            sensibilidade = (vp[i]/(vp[i] + fn[i]))*100
+            especificidade = (vn[i]/(vn[i] + fp[i]))*100
+            precisao = (vp[i]/(vp[i]+fp[i]))*100
+            scoref1 = ((2*vp[i])/((2*vp[i])+fp[i]+fn[i]))*100
+            info += '\n' + ('{0:5s} - {1:0.1f}% - {2:0.1f}% - {3:0.1f}% - {4:0.1f}% - {5:0.1f}%'.format(LABEL_MAP[i], acuracia, sensibilidade, especificidade, precisao, scoref1))
+        model_accuracy = ((np.sum(vp) + np.sum(vn))/(np.sum(vp) + np.sum(vn) + np.sum(fp) + np.sum(fn))) * 100
+        info += '\n\n' + ('Acuracia do Modelo com {0} no teste : {1:.2f} %'.format(len(data), model_accuracy))
+
+        dados['info'] = info
+        pickle.dump(dados, open('./dados/svm.sav', 'wb'))
+
+    # Mostrar matriz de confusao
+    fig, axis = plt.subplots(1,1,figsize = (5,5))
+    axis.matshow(dados['matriz'], aspect='auto', vmin = 0, vmax = 1000, cmap= plt.get_cmap('Wistia'))
+    for (i, j), z in np.ndenumerate(dados['matriz']):
+        valor_linha = 0
+        for index in range(0 , 5):
+            valor_linha += dados['matriz'][i,index]
+        axis.text(j, i, '{:0.2f}'.format(z*100/valor_linha), ha='center', va='center')
+    plt.ylabel('Actual Category')
+    plt.yticks(range(5), LABEL_MAP.values())
+    plt.xlabel('Predicted Category')
+    plt.xticks(range(5), LABEL_MAP.values())
+    plt.rcParams.update({'font.size': 14})
+    apresentar_dados(dados['info'])
+    plt.show()
+
+def classificar_svm():
+    data = []
+
+    fileName = filedialog.askopenfilename(filetypes= (("PNG","*.png"), ("JPG","*.jpg")))
+    nomePastaTotal = fileName.split('/')
+    nomePasta = nomePastaTotal[len(nomePastaTotal)-2]
+
+    imagem = Image.open(r""+fileName)
+
+    transformacao = transforms.Compose(transforms=[transforms.Grayscale(num_output_channels=3),
+                                              transforms.Resize((224, 224)),
+                                              transforms.CenterCrop((90, 220))])
+
+    imagem = transformacao(imagem)
+
+    imagem = np.array(imagem)
+
+    gray = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
 
     gray = cv2.equalizeHist(gray)
 
@@ -694,16 +929,32 @@ def SVM():
                                 cv2.THRESH_BINARY_INV +
                                 cv2.THRESH_OTSU)
 
-    cv2.imshow('image1', firstImg)
-    cv2.imshow('image2', thresh)
+    kernel = np.ones((3, 3), np.uint8)
 
-    print("EM CONSTRUCAO")
+    closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE,
+                                kernel, iterations = 2)
 
-def apresentar_resultados_svm():
-    print("EM CONSTRUCAO")
+    bg = cv2.dilate(closing, kernel, iterations = 1)
 
-def classificar_svm():
-    print("EM CONSTRUCAO")
+    dist_transform = cv2.distanceTransform(closing, cv2.DIST_L2, 0)
+
+    ret, imagem = cv2.threshold(dist_transform, 0.02
+                            * dist_transform.max(), 255, 0)
+
+    data.append(imagem)
+
+    X_test = np.array(data)
+    nsamples = X_test.shape[0]
+    nx = X_test.shape[1]
+    ny = X_test.shape[2]
+    X_test = X_test.reshape((nsamples,nx*ny))
+
+    clf = pickle.load(open('./checkpoint/svm.sav', 'rb'))
+    y_pred = clf.predict(X_test)
+
+    apresentar_dados("Joelho cassificado como: " + str(y_pred[0]) +
+                     "\nJoelho da classe: " + nomePasta)
+
 
 """
 Nome: XGBoost
@@ -712,13 +963,276 @@ XGBoost como IA.
 Descricao: Construcao do algoritmo XGBoost.
 """
 def XGBoost():
-    print("EM CONSTRUCAO")
+    data = []
+    target = []
+    imagem = []
+
+    for i, _, arquivos in os.walk(root_path_train):
+        for arquivo in arquivos:
+            i_aux = str(i).replace("\\", "/")
+            nomePastaTotal = i_aux.split('/')
+            nomePasta = nomePastaTotal[len(nomePastaTotal)-1]
+
+            imagem = Image.open(r""+i_aux+'/'+arquivo)
+
+            transformacao = transforms.Compose(transforms=[transforms.Resize((224, 224)),
+                                                      transforms.CenterCrop((90, 220)),
+                                                      transforms.Grayscale(num_output_channels=3)])
+
+            imagem = transformacao(imagem)
+
+            imagem = np.array(imagem)
+
+            gray = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
+
+            gray = cv2.equalizeHist(gray)
+
+            ret, thresh = cv2.threshold(gray, 0, 255,
+                                        cv2.THRESH_BINARY_INV +
+                                        cv2.THRESH_OTSU)
+
+            kernel = np.ones((3, 3), np.uint8)
+
+            closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE,
+                                        kernel, iterations = 2)
+
+            bg = cv2.dilate(closing, kernel, iterations = 1)
+
+            dist_transform = cv2.distanceTransform(closing, cv2.DIST_L2, 0)
+
+            ret, imagem = cv2.threshold(dist_transform, 0.02
+                                    * dist_transform.max(), 255, 0)
+
+            data.append(imagem)
+            target.append(nomePasta)
+
+    for i, _, arquivos in os.walk(root_path_test):
+        for arquivo in arquivos:
+            i_aux = str(i).replace("\\", "/")
+            nomePastaTotal = i_aux.split('/')
+            nomePasta = nomePastaTotal[len(nomePastaTotal)-1]
+
+            imagem = Image.open(r""+i_aux+'/'+arquivo)
+
+            transformacao = transforms.Compose(transforms=[transforms.Grayscale(num_output_channels=3),
+                                                      transforms.Resize((224, 224)),
+                                                      transforms.CenterCrop((90, 220))])
+
+            imagem = transformacao(imagem)
+
+            imagem = np.array(imagem)
+
+            gray = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
+
+            gray = cv2.equalizeHist(gray)
+
+            ret, thresh = cv2.threshold(gray, 0, 255,
+                                        cv2.THRESH_BINARY_INV +
+                                        cv2.THRESH_OTSU)
+
+            kernel = np.ones((3, 3), np.uint8)
+
+            closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE,
+                                        kernel, iterations = 2)
+
+            bg = cv2.dilate(closing, kernel, iterations = 1)
+
+            dist_transform = cv2.distanceTransform(closing, cv2.DIST_L2, 0)
+
+            ret, imagem = cv2.threshold(dist_transform, 0.02
+                                    * dist_transform.max(), 255, 0)
+
+            data.append(imagem)
+            target.append(nomePasta)
+
+    X_train = np.array(data)
+    y_train = np.array(target)
+
+    X_train = np.array(data)
+    nsamples = X_train.shape[0]
+    nx = X_train.shape[1]
+    ny = X_train.shape[2]
+    X_train = X_train.reshape((nsamples,nx*ny))
+
+    training_time = dt.datetime.now()
+    y_train = y_train.astype('int')
+
+    clf = XGBClassifier()
+    clf.fit(X_train, y_train)
+
+    pickle.dump(clf, open('./checkpoint/xgboost.sav', 'wb'))
 
 def apresentar_resultados_xgboost():
-    print("EM CONSTRUCAO")
+    data = []
+    target = []
+    dados = {
+        'info': '',
+        'matriz': np.zeros([5,5], int)
+    }
+
+    if os.path.exists('./dados/xgboost.sav') and os.stat("./dados/xgboost.sav").st_size != 0:
+        dados = pickle.load(open('./dados/xgboost.sav', 'rb'))
+
+    else:
+        for i, _, arquivos in os.walk(root_path_val):
+            for arquivo in arquivos:
+                i_aux = str(i).replace("\\", "/")
+                nomePastaTotal = i_aux.split('/')
+                nomePasta = nomePastaTotal[len(nomePastaTotal)-1]
+
+                imagem = Image.open(r""+i_aux+'/'+arquivo)
+
+                transformacao = transforms.Compose(transforms=[transforms.Grayscale(num_output_channels=3),
+                                                          transforms.Resize((224, 224)),
+                                                          transforms.CenterCrop((90, 220))])
+
+                imagem = transformacao(imagem)
+
+                imagem = np.array(imagem)
+
+                gray = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
+
+                gray = cv2.equalizeHist(gray)
+
+                ret, thresh = cv2.threshold(gray, 0, 255,
+                                            cv2.THRESH_BINARY_INV +
+                                            cv2.THRESH_OTSU)
+
+                kernel = np.ones((3, 3), np.uint8)
+
+                closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE,
+                                            kernel, iterations = 2)
+
+                bg = cv2.dilate(closing, kernel, iterations = 1)
+
+                dist_transform = cv2.distanceTransform(closing, cv2.DIST_L2, 0)
+
+                ret, imagem = cv2.threshold(dist_transform, 0.02
+                                        * dist_transform.max(), 255, 0)
+
+                data.append(imagem)
+                target.append(nomePasta)
+
+        X_test = np.array(data)
+        nsamples = X_test.shape[0]
+        nx = X_test.shape[1]
+        ny = X_test.shape[2]
+        X_test = X_test.reshape((nsamples,nx*ny))
+
+        clf = pickle.load(open('./checkpoint/xgboost.sav', 'rb'))
+        y_pred = clf.predict(X_test)
+
+        # Criar vetor para armazenar os valores da formular
+        vp = np.zeros(5, int)
+        vn = np.zeros(5, int)
+        fp = np.zeros(5, int)
+        fn = np.zeros(5, int)
+        confusion_matrix = np.zeros([5,5], int)
+
+        for i in range(0, len(target)):
+            x = int(target[i])
+            y = int(y_pred[i])
+            confusion_matrix[x, y] = confusion_matrix[x, y] + 1
+
+        dados['matriz'] = confusion_matrix
+
+        # pegar o valor para cada classe
+        for i in range(0, 5):
+            for j in range(0, 5):
+                for k in range(0, 5):
+                    if i == k and j == k:
+                        vp[k] += confusion_matrix[i, j];
+
+                    if i != k and j == k:
+                        fp[k] += confusion_matrix[i, j]
+
+                    if i == k and j != k:
+                        fn[i] += confusion_matrix[i, j];
+
+                    if i != k and j != k:
+                        vn[k] += confusion_matrix[i, j]
+
+        # Apresentar resultados do treino
+        info = ('{0:5s} - {1:5s} - {2:5s} - {3:5s} - {4}'.format('Acuracia', 'Sensibilidade', 'Especificidade', 'Precisão', 'Score F1'))
+        for i in range(0, 5):
+            acuracia = ((vp[i] + vn[i])/(vp[i] + vn[i] + fp[i] + fn[i]))*100
+            sensibilidade = (vp[i]/(vp[i] + fn[i]))*100
+            especificidade = (vn[i]/(vn[i] + fp[i]))*100
+            precisao = (vp[i]/(vp[i]+fp[i]))*100
+            scoref1 = ((2*vp[i])/((2*vp[i])+fp[i]+fn[i]))*100
+            info += '\n' + ('{0:5s} - {1:0.1f}% - {2:0.1f}% - {3:0.1f}% - {4:0.1f}% - {5:0.1f}%'.format(LABEL_MAP[i], acuracia, sensibilidade, especificidade, precisao, scoref1))
+        model_accuracy = ((np.sum(vp) + np.sum(vn))/(np.sum(vp) + np.sum(vn) + np.sum(fp) + np.sum(fn))) * 100
+        info += '\n\n' + ('Acuracia do Modelo com {0} no teste : {1:.2f} %'.format(len(data), model_accuracy))
+
+        dados['info'] = info
+        pickle.dump(dados, open('./dados/xgboost.sav', 'wb'))
+
+    # Mostrar matriz de confusao
+    fig, axis = plt.subplots(1,1,figsize = (5,5))
+    axis.matshow(dados['matriz'], aspect='auto', vmin = 0, vmax = 1000, cmap= plt.get_cmap('Wistia'))
+    for (i, j), z in np.ndenumerate(dados['matriz']):
+        valor_linha = 0
+        for index in range(0 , 5):
+            valor_linha += dados['matriz'][i,index]
+        axis.text(j, i, '{:0.2f}'.format(z*100/valor_linha), ha='center', va='center')
+    plt.ylabel('Actual Category')
+    plt.yticks(range(5), LABEL_MAP.values())
+    plt.xlabel('Predicted Category')
+    plt.xticks(range(5), LABEL_MAP.values())
+    plt.rcParams.update({'font.size': 14})
+    apresentar_dados(dados['info'])
+    plt.show()
 
 def classificar_xgboost():
-    print("EM CONSTRUCAO")
+    data = []
+
+    fileName = filedialog.askopenfilename(filetypes= (("PNG","*.png"), ("JPG","*.jpg")))
+    nomePastaTotal = fileName.split('/')
+    nomePasta = nomePastaTotal[len(nomePastaTotal)-2]
+
+    imagem = Image.open(r""+fileName)
+
+    transformacao = transforms.Compose(transforms=[transforms.Grayscale(num_output_channels=3),
+                                              transforms.Resize((224, 224)),
+                                              transforms.CenterCrop((90, 220))])
+
+    imagem = transformacao(imagem)
+
+    imagem = np.array(imagem)
+
+    gray = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
+
+    gray = cv2.equalizeHist(gray)
+
+    ret, thresh = cv2.threshold(gray, 0, 255,
+                                cv2.THRESH_BINARY_INV +
+                                cv2.THRESH_OTSU)
+
+    kernel = np.ones((3, 3), np.uint8)
+
+    closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE,
+                                kernel, iterations = 2)
+
+    bg = cv2.dilate(closing, kernel, iterations = 1)
+
+    dist_transform = cv2.distanceTransform(closing, cv2.DIST_L2, 0)
+
+    ret, imagem = cv2.threshold(dist_transform, 0.02
+                            * dist_transform.max(), 255, 0)
+
+    data.append(imagem)
+
+    X_test = np.array(data)
+    nsamples = X_test.shape[0]
+    nx = X_test.shape[1]
+    ny = X_test.shape[2]
+    X_test = X_test.reshape((nsamples,nx*ny))
+
+    clf = pickle.load(open('./checkpoint/xgboost.sav', 'rb'))
+    y_pred = clf.predict(X_test)
+
+    apresentar_dados("Joelho cassificado como: " + str(y_pred[0]) +
+                     "\nJoelho da classe: " + nomePasta)
 
 # --- --- --- --- TELA PRINCIPAL / MENU --- --- --- ---
 
@@ -955,6 +1469,7 @@ def apresentar_dados(info):
     btn_shufflenet = Tk.Button(root, text = "Voltar", padx = 1, pady = 1,
                                fg = "white", bg = "#00006F", command = construir_menu_classificador)
     btn_shufflenet.place(relwidth = 0.98, relheight = 0.10, relx = 0.01, rely = 0.89)
+
 
 construir_menu_principal() # Chamar primeira criacao/configuracao de tela
 root.mainloop() # Deixar tela aberta
