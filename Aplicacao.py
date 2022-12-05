@@ -479,6 +479,7 @@ def aumentar_dados():
     filepathDestinyMirrored = filepath + "Mirrored"
     filepathDestinyEqualizeHist = filepath + "EqualizeHist"
 
+    # Aplicar equalizacao e espelhamento em todas as imagens da base
     for _, _, arquivos in os.walk(filepath):
         os.chdir(filepath)
 
@@ -514,17 +515,20 @@ def aumentar_dados():
                 imageEspelhada.save(r""+"c"+arquivo)
                 os.chdir(filepath)
 
+# --- --- --- --- Shufflenet --- --- --- ---
+
 """
 Nome: shufflenet
 Funcao: Aplicar o aprendizado shufflenet.
 """
 def shufflenet():
+    # Fazer preprocessamento da imagem
     transform_train = transforms.Compose(transforms=[transforms.Resize((224, 224)),
                                          transforms.CenterCrop((90, 210)),
                                          transforms.RandomEqualize(p=1),
                                          transforms.Resize((50, 50)),
                                          transforms.ToTensor()])
-
+    # Abrir base de dados
     train_set = dsets.ImageFolder(root=root_path_train, transform=transform_train)
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=0, drop_last=False)
 
@@ -535,6 +539,7 @@ def shufflenet():
     train_accuracy_list = []
     test_accuracy_list = []
 
+    # Treinar modelo
     for epoch_i in range(start_epoch, start_epoch + EPOCH):
       global accuracy_list
       current_learning_rate = [i['lr'] for i in optimizer.param_groups][0]
@@ -687,6 +692,8 @@ def classificar_shufflenet():
     "\n Resultado: " + resultado +
     '\n Tempo total de clasificação: ' + str((dt.datetime.now() - classifier_time).seconds) + ' segundos ')
 
+# --- --- --- --- SVM --- --- --- ---
+
 """
 Nome: SVM
 Funcao: Implemtar aprendizado profundo na aplicacao, utilizando o
@@ -811,6 +818,10 @@ def SVM():
     f.write("")
     f.close()
 
+"""
+Nome: apresentar_resultados_svm
+Funcao: Apresentar resultados do classificador multiclasse.
+"""
 def apresentar_resultados_svm():
     data = []
     target = []
@@ -931,6 +942,10 @@ def apresentar_resultados_svm():
     apresentar_dados(dados['info'])
     plt.show()
 
+"""
+Nome: apresentar_resultados_svmB
+Funcao: Apresentar resultados do classificador Binario.
+"""
 def apresentar_resultados_svmB():
     data = []
     target = []
@@ -1053,6 +1068,10 @@ def apresentar_resultados_svmB():
     apresentar_dados(dados['info'])
     plt.show()
 
+"""
+Nome: classificar_svm
+Funcao: Classifica uma unica imagem com o modelo multiclasse.
+"""
 def classificar_svm():
     data = []
 
@@ -1108,6 +1127,10 @@ def classificar_svm():
     "Joelho cassificado como: " + str(y_pred[0])+
     "\n Resultado: " + resultado)
 
+"""
+Nome: classificar_svmB
+Funcao: Classifica uma unica imagem com o modelo binario.
+"""
 def classificar_svmB():
     data = []
 
@@ -1162,6 +1185,8 @@ def classificar_svmB():
     apresentar_dados("FIM DA CLASSIFICAÇÃO"+
     "Joelho cassificado como: " + str(y_pred[0])+
     "\n Resultado: " + resultado)
+
+# --- --- --- --- XGBoost --- --- --- ---
 
 """
 Nome: XGBoost
@@ -1266,17 +1291,17 @@ def XGBoost():
     training_time = dt.datetime.now()
     clf = XGBClassifier(learning_rate=0.1,
                         objective='multi:softmax',
-                        booters='gbtree',
-                        num_class=5,
-                        max_depth=10)
+                        booster='gblinear',
+                        max_iter=250,
+                        num_class=5)
     clf.fit(data, y_train)
     training_time = dt.datetime.now() - training_time
 
     training_timeB = dt.datetime.now()
     clfB = XGBClassifier(learning_rate=0.1,
-                         objective='reg:linear',
-                         booters='gbtree',
-                         max_depth=10)
+                         max_iter=250,
+                         objective='multi:softmax',
+                         booster='gblinear')
     clfB.fit(data, y_trainB)
 
     apresentar_dados("FIM DO TREINAMENTO"+
@@ -1295,6 +1320,10 @@ def XGBoost():
     f.write("")
     f.close()
 
+"""
+Nome: apresentar_resultados_xgboost
+Funcao: Apresentar resultados do modelo multiclasse treinado.
+"""
 def apresentar_resultados_xgboost():
     data = []
     target = []
@@ -1412,6 +1441,10 @@ def apresentar_resultados_xgboost():
     apresentar_dados(dados['info'])
     plt.show()
 
+"""
+Nome: apresentar_resultados_xgboostB
+Funcao: Apresentar resultados do modelo binario treinado.
+"""
 def apresentar_resultados_xgboostB():
     data = []
     target = []
@@ -1530,6 +1563,10 @@ def apresentar_resultados_xgboostB():
     apresentar_dados(dados['info'])
     plt.show()
 
+"""
+Nome: classificar_xgboost
+Funcao: Classifica uma imagem com o modelo multiclasse trinado.
+"""
 def classificar_xgboost():
     data = []
 
@@ -1577,6 +1614,10 @@ def classificar_xgboost():
     "\n Joelho cassificado como: " + str(y_pred[0])+
     '\n Resultado: ' + resultado)
 
+"""
+Nome: classificar_xgboostB
+Funcao: Classifica uma imagem com o modelo binario trinado.
+"""
 def classificar_xgboostB():
     data = []
 
@@ -1785,7 +1826,7 @@ def construir_menu_shufflenet():
 
 """
 Nome: construir_menu_svm
-Funcao: Criar menu com opcoes do classsificador.
+Funcao: Criar menu com opcoes do classificador.
 """
 def construir_menu_svm():
     # Configurar tela
@@ -1817,8 +1858,8 @@ def construir_menu_svm():
     btn_shufflenet.place(relwidth = 0.23, relheight = 0.8, relx = 0.75, rely = 0.1)
 
 """
-Nome: construir_menu_xgboost
-Funcao: Criar menu com opcoes do classsificador.
+Nome: construir_menu_svm_apresentar
+Funcao: Mostrar dados de classificacao.
 """
 def construir_menu_svm_apresentar():
     # Configurar tela
@@ -1845,8 +1886,8 @@ def construir_menu_svm_apresentar():
     btn_nao_salvar.place(relwidth = 0.36, relheight = 0.8, relx = 0.62, rely = 0.1)
 
 """
-Nome: construir_menu_xgboost
-Funcao: Criar menu com opcoes do classsificador.
+Nome: construir_menu_svm_classificar
+Funcao: Mostrar opcoes de classificacao.
 """
 def construir_menu_svm_classificar():
     # Configurar tela
@@ -1906,8 +1947,8 @@ def construir_menu_xgboost():
     btn_shufflenet.place(relwidth = 0.23, relheight = 0.8, relx = 0.75, rely = 0.1)
 
 """
-Nome: construir_menu_xgboost
-Funcao: Criar menu com opcoes do classsificador.
+Nome: construir_menu_xgboost_apresentar
+Funcao: Apresentar informacoes de classificacao.
 """
 def construir_menu_xgboost_apresentar():
     # Configurar tela
@@ -1934,8 +1975,8 @@ def construir_menu_xgboost_apresentar():
     btn_nao_salvar.place(relwidth = 0.36, relheight = 0.8, relx = 0.62, rely = 0.1)
 
 """
-Nome: construir_menu_xgboost
-Funcao: Criar menu com opcoes do classsificador.
+Nome: construir_menu_xgboost_classificar
+Funcao: Mostrar opcoes de classificacao de imagens.
 """
 def construir_menu_xgboost_classificar():
     # Configurar tela
@@ -1962,8 +2003,8 @@ def construir_menu_xgboost_classificar():
     btn_nao_salvar.place(relwidth = 0.36, relheight = 0.8, relx = 0.62, rely = 0.1)
 
 """
-Nome: construir_menu_shufflenet
-Funcao: Criar menu com opcoes do classsificador.
+Nome: apresentar_dados
+Funcao: Mostrar informacoes para o usuario.
 """
 def apresentar_dados(info):
     # Configurar tela
@@ -1982,6 +2023,10 @@ def apresentar_dados(info):
                                fg = "white", bg = "#00006F", command = construir_menu_classificador)
     btn_shufflenet.place(relwidth = 0.98, relheight = 0.10, relx = 0.01, rely = 0.89)
 
+"""
+Nome: isNaN
+Funcao: Verificar um NaN.
+"""
 def isNaN(num):
     return num!= num
 
