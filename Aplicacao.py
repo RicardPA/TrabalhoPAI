@@ -1266,7 +1266,7 @@ def XGBoost():
     training_time = dt.datetime.now()
     clf = XGBClassifier(learning_rate=0.1,
                         objective='multi:softmax',
-                        booter='gbtree',
+                        booters='gbtree',
                         num_class=5,
                         max_depth=10)
     clf.fit(data, y_train)
@@ -1275,7 +1275,7 @@ def XGBoost():
     training_timeB = dt.datetime.now()
     clfB = XGBClassifier(learning_rate=0.1,
                          objective='reg:linear',
-                         booter='gbtree',
+                         booters='gbtree',
                          max_depth=10)
     clfB.fit(data, y_trainB)
 
