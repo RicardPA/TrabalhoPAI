@@ -587,6 +587,7 @@ def apresentar_resultados_shufflenet():
         total_correct = 0
         total_images = 0
         confusion_matrix = np.zeros([5,5], int)
+        confusion_matrixB = np.zeros([2,2], int)
 
         with torch.no_grad():
             for i,data in enumerate(test_loader):
@@ -598,6 +599,105 @@ def apresentar_resultados_shufflenet():
                 total_correct += (predicted == labels).sum().item()
                 for i, l in enumerate(labels):
                     confusion_matrix[l.item(), predicted[i].item()] +=1
+
+        dados['matriz'] = confusion_matrix
+        # Criar vetor para armazenar os valores da formular
+        vp = np.zeros(5, int)
+        vn = np.zeros(5, int)
+        fp = np.zeros(5, int)
+        fn = np.zeros(5, int)
+
+        # pegar o valor para cada classe
+        for i in range(0, 5):
+            for j in range(0, 5):
+                for k in range(0, 5):
+                    if i == k and j == k:
+                        vp[k] += confusion_matrix[i, j]
+
+                    if i != k and j == k:
+                        fp[k] += confusion_matrix[i, j]
+
+                    if i == k and j != k:
+                        fn[k] += confusion_matrix[i, j]
+
+                    if i != k and j != k:
+                        vn[k] += confusion_matrix[i, j]
+
+        # Apresentar resultados do treino
+        info = ('{0:5s} - {1:5s} - {2:5s} - {3:5s} - {4}'.format('Acuracia', 'Sensibilidade', 'Especificidade', 'Precisão', 'Score F1'))
+        for i in range(0, 5):
+            acuracia = ((vp[i] + vn[i])/(vp[i] + vn[i] + fp[i] + fn[i]))*100 if not isNaN(((vp[i] + vn[i])/(vp[i] + vn[i] + fp[i] + fn[i]))*100) else 0
+            sensibilidade = (vp[i]/(vp[i] + fn[i]))*100 if not isNaN((vp[i]/(vp[i] + fn[i]))*100) else 0
+            especificidade = (vn[i]/(vn[i] + fp[i]))*100 if not isNaN((vn[i]/(vn[i] + fp[i]))*100) else 0
+            precisao = (vp[i]/(vp[i]+fp[i]))*100 if not isNaN((vp[i]/(vp[i]+fp[i]))*100) else 0
+            scoref1 = ((2*vp[i])/((2*vp[i])+fp[i]+fn[i]))*100 if not isNaN(((2*vp[i])/((2*vp[i])+fp[i]+fn[i]))*100) else 0
+            info += '\n' + ('{0:5s} - {1:0.1f}% - {2:0.1f}% - {3:0.1f}% - {4:0.1f}% - {5:0.1f}%'.format(LABEL_MAP[i], acuracia, sensibilidade, especificidade, precisao, scoref1))
+        model_accuracy = total_correct/total_images *100
+        info += '\n\n' + ('Acuracia do Modelo com {0} no teste : {1:.2f} %'.format(total_images, model_accuracy))
+        dados['info'] = info
+        pickle.dump(dados, open('./dados/shufflenet.sav', 'wb'))
+
+    confusion_matrix = dados['matriz']
+    apresentar_dados(dados['info'])
+    # Mostrar matriz de confusao
+    fig, axis = plt.subplots(1,1,figsize = (5,5))
+    axis.matshow(confusion_matrix, aspect='auto', vmin = 0, vmax = 1000, cmap= plt.get_cmap('Wistia'))
+    for (i, j), z in np.ndenumerate(confusion_matrix):
+        valor_linha = 0
+        for index in range(0 , 5):
+            valor_linha += confusion_matrix[i,index]
+        axis.text(j, i, '{:0.2f}'.format(z*100/valor_linha), ha='center', va='center')
+    plt.ylabel('Actual Category')
+    plt.yticks(range(5), LABEL_MAP.values())
+    plt.xlabel('Predicted Category')
+    plt.xticks(range(5), LABEL_MAP.values())
+    plt.rcParams.update({'font.size': 14})
+    plt.show()
+
+
+
+"""
+Nome: apresentar_resultados
+Funcao: Mostrar resultados do aprendizado da rede.
+"""
+def apresentar_resultados_shufflenetB():
+    dados = {
+        'info': '',
+        'matriz': np.zeros([5,5], int)
+    }
+    tipo = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if os.path.exists('./dados/shufflenet.sav') and os.stat("./dados/shufflenet.sav").st_size != 0:
+        dados = pickle.load(open('./dados/shufflenet.sav', 'rb'))
+    else:
+        net3 = torch.load('./checkpoint/net3.pth', map_location=torch.device(tipo))
+
+        transform_test = transforms.Compose(transforms=[transforms.Resize((224, 224)),
+                                                         transforms.CenterCrop((90, 210)),
+                                                         transforms.RandomEqualize(p=1),
+                                                         transforms.Resize((50, 50)),
+                                                         transforms.ToTensor()])
+
+        test_set = dsets.ImageFolder(root=root_path_test, transform=transform_test)
+        test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=0, drop_last=False)
+
+        #Model Accuracy
+        total_correct = 0
+        total_images = 0
+        confusion_matrix = np.zeros([5,5], int)
+        confusion_matrixB = np.zeros([2,2], int)
+
+        with torch.no_grad():
+            for i,data in enumerate(test_loader):
+                images, labels = data
+                images, labels = images.to(device), labels.to(device)
+                outputs = net3(images)
+                _, predicted = torch.max(outputs.data, 1)
+                total_images += labels.size(0)
+                total_correct += (predicted == labels).sum().item()
+                for i, l in enumerate(labels):
+                    int labelB= 0 if l.item()<2 else 1
+                    int predB= 0 if predicted[i].item()<2 else 1
+                    confusion_matrix[labelB, predB] +=1
 
         dados['matriz'] = confusion_matrix
         # Criar vetor para armazenar os valores da formular
