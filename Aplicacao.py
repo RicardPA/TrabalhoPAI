@@ -635,6 +635,9 @@ def apresentar_resultados_shufflenet():
         model_accuracy = total_correct/total_images *100
         info += '\n\n' + ('Acuracia do Modelo com {0} no teste : {1:.2f} %'.format(total_images, model_accuracy))
         dados['info'] = info
+
+        if not os.path.isdir('dados'):
+            os.mkdir('dados')
         pickle.dump(dados, open('./dados/shufflenet.sav', 'wb'))
 
     confusion_matrix = dados['matriz']
@@ -654,20 +657,19 @@ def apresentar_resultados_shufflenet():
     plt.rcParams.update({'font.size': 14})
     plt.show()
 
-
-
 """
 Nome: apresentar_resultados
-Funcao: Mostrar resultados do aprendizado da rede.
+Funcao: Mostrar resultados do aprendizado da rede de forma binaria.
 """
 def apresentar_resultados_shufflenetB():
     dados = {
         'info': '',
-        'matriz': np.zeros([5,5], int)
+        'matriz': np.zeros([2,2], int)
     }
+
     tipo = 'cuda' if torch.cuda.is_available() else 'cpu'
-    if os.path.exists('./dados/shufflenet.sav') and os.stat("./dados/shufflenet.sav").st_size != 0:
-        dados = pickle.load(open('./dados/shufflenet.sav', 'rb'))
+    if os.path.exists('./dados/shufflenetB.sav') and os.stat("./dados/shufflenetB.sav").st_size != 0:
+        dados = pickle.load(open('./dados/shufflenetB.sav', 'rb'))
     else:
         net3 = torch.load('./checkpoint/net3.pth', map_location=torch.device(tipo))
 
@@ -683,8 +685,7 @@ def apresentar_resultados_shufflenetB():
         #Model Accuracy
         total_correct = 0
         total_images = 0
-        confusion_matrix = np.zeros([5,5], int)
-        confusion_matrixB = np.zeros([2,2], int)
+        confusion_matrix = np.zeros([2,2], int)
 
         with torch.no_grad():
             for i,data in enumerate(test_loader):
@@ -693,23 +694,27 @@ def apresentar_resultados_shufflenetB():
                 outputs = net3(images)
                 _, predicted = torch.max(outputs.data, 1)
                 total_images += labels.size(0)
-                total_correct += (predicted == labels).sum().item()
+                for j in range(0, len(predicted)):
+                    if int(predicted[j]) < 2 and int(labels[j]) < 2:
+                        total_correct += 1
+                    elif int(predicted[j]) > 1 and int(labels[j]) > 1:
+                        total_correct += 1
                 for i, l in enumerate(labels):
-                    int labelB= 0 if l.item()<2 else 1
-                    int predB= 0 if predicted[i].item()<2 else 1
+                    labelB= 0 if l.item()<2 else 1
+                    predB= 0 if predicted[i].item()<2 else 1
                     confusion_matrix[labelB, predB] +=1
 
         dados['matriz'] = confusion_matrix
         # Criar vetor para armazenar os valores da formular
-        vp = np.zeros(5, int)
-        vn = np.zeros(5, int)
-        fp = np.zeros(5, int)
-        fn = np.zeros(5, int)
+        vp = np.zeros(2, int)
+        vn = np.zeros(2, int)
+        fp = np.zeros(2, int)
+        fn = np.zeros(2, int)
 
         # pegar o valor para cada classe
-        for i in range(0, 5):
-            for j in range(0, 5):
-                for k in range(0, 5):
+        for i in range(0, 2):
+            for j in range(0, 2):
+                for k in range(0, 2):
                     if i == k and j == k:
                         vp[k] += confusion_matrix[i, j]
 
@@ -724,33 +729,36 @@ def apresentar_resultados_shufflenetB():
 
         # Apresentar resultados do treino
         info = ('{0:5s} - {1:5s} - {2:5s} - {3:5s} - {4}'.format('Acuracia', 'Sensibilidade', 'Especificidade', 'Precisão', 'Score F1'))
-        for i in range(0, 5):
+        for i in range(0, 2):
             acuracia = ((vp[i] + vn[i])/(vp[i] + vn[i] + fp[i] + fn[i]))*100 if not isNaN(((vp[i] + vn[i])/(vp[i] + vn[i] + fp[i] + fn[i]))*100) else 0
             sensibilidade = (vp[i]/(vp[i] + fn[i]))*100 if not isNaN((vp[i]/(vp[i] + fn[i]))*100) else 0
             especificidade = (vn[i]/(vn[i] + fp[i]))*100 if not isNaN((vn[i]/(vn[i] + fp[i]))*100) else 0
             precisao = (vp[i]/(vp[i]+fp[i]))*100 if not isNaN((vp[i]/(vp[i]+fp[i]))*100) else 0
             scoref1 = ((2*vp[i])/((2*vp[i])+fp[i]+fn[i]))*100 if not isNaN(((2*vp[i])/((2*vp[i])+fp[i]+fn[i]))*100) else 0
             info += '\n' + ('{0:5s} - {1:0.1f}% - {2:0.1f}% - {3:0.1f}% - {4:0.1f}% - {5:0.1f}%'.format(LABEL_MAP[i], acuracia, sensibilidade, especificidade, precisao, scoref1))
-        model_accuracy = total_correct/total_images *100
+        model_accuracy = total_correct/total_images*100
         info += '\n\n' + ('Acuracia do Modelo com {0} no teste : {1:.2f} %'.format(total_images, model_accuracy))
         dados['info'] = info
-        pickle.dump(dados, open('./dados/shufflenet.sav', 'wb'))
+
+        if not os.path.isdir('dados'):
+            os.mkdir('dados')
+        pickle.dump(dados, open('./dados/shufflenetB.sav', 'wb'))
 
     confusion_matrix = dados['matriz']
     apresentar_dados(dados['info'])
     # Mostrar matriz de confusao
-    fig, axis = plt.subplots(1,1,figsize = (5,5))
+    fig, axis = plt.subplots(1,1,figsize = (2,2))
     axis.matshow(confusion_matrix, aspect='auto', vmin = 0, vmax = 1000, cmap= plt.get_cmap('Wistia'))
     for (i, j), z in np.ndenumerate(confusion_matrix):
         valor_linha = 0
-        for index in range(0 , 5):
+        for index in range(0 , 2):
             valor_linha += confusion_matrix[i,index]
         axis.text(j, i, '{:0.2f}'.format(z*100/valor_linha), ha='center', va='center')
     plt.ylabel('Actual Category')
-    plt.yticks(range(5), LABEL_MAP.values())
+    plt.yticks(range(2), {0: 'Sem artrose', 1: 'Com artrose'}.values())
     plt.xlabel('Predicted Category')
-    plt.xticks(range(5), LABEL_MAP.values())
-    plt.rcParams.update({'font.size': 14})
+    plt.xticks(range(2), {0: 'Sem artrose', 1: 'Com artrose'}.values())
+    plt.rcParams.update({'font.size': 6})
     plt.show()
 
 """
@@ -894,12 +902,12 @@ def SVM():
     X_train = X_train.reshape((nsamples,nx*ny))
 
     training_time = dt.datetime.now()
-    clf = svm.SVC(kernel='poly', class_weight='balanced')
+    clf = svm.SVC(kernel='poly', class_weight='balanced', max_iter=250)
     clf.fit(X_train, target)
     training_time = dt.datetime.now() - training_time
 
     training_timeB = dt.datetime.now()
-    clfB = svm.SVC(kernel='linear', class_weight='balanced')
+    clfB = svm.SVC(kernel='linear', class_weight='balanced', max_iter=250)
     clfB.fit(X_train, targetB)
 
     apresentar_dados("FIM DO TREINAMENTO"+
@@ -907,6 +915,8 @@ def SVM():
     '\n\n Tempo total de treinamento do modelo multiclasse: ' + str(int((training_time).seconds/60)) + ' minutos '+
     '\n Tempo total de treinamento do modelo binário: ' + str(int((dt.datetime.now() - training_timeB).seconds/60)) + ' minutos ')
 
+    if not os.path.isdir('checkpoint'):
+        os.mkdir('checkpoint')
     pickle.dump(clf, open('./checkpoint/svm.sav', 'wb'))
     pickle.dump(clfB, open('./checkpoint/svmB.sav', 'wb'))
 
@@ -1024,6 +1034,9 @@ def apresentar_resultados_svm():
         info += '\n\n' + ('Acuracia do Modelo com {0} no teste : {1:.2f} %'.format(len(data), model_accuracy))
 
         dados['info'] = info
+
+        if not os.path.isdir('dados'):
+            os.mkdir('dados')
         pickle.dump(dados, open('./dados/svm.sav', 'wb'))
 
     # Mostrar matriz de confusao
@@ -1150,6 +1163,9 @@ def apresentar_resultados_svmB():
         info += '\n\n' + ('Acuracia do Modelo com {0} no teste : {1:.2f} %'.format(len(data), model_accuracy))
 
         dados['info'] = info
+
+        if not os.path.isdir('dados'):
+            os.mkdir('dados')
         pickle.dump(dados, open('./dados/svmB.sav', 'wb'))
 
     # Mostrar matriz de confusao
@@ -1391,17 +1407,13 @@ def XGBoost():
     training_time = dt.datetime.now()
     clf = XGBClassifier(learning_rate=0.1,
                         objective='multi:softmax',
-                        booster='gblinear',
-                        max_iter=250,
                         num_class=5)
     clf.fit(data, y_train)
     training_time = dt.datetime.now() - training_time
 
     training_timeB = dt.datetime.now()
     clfB = XGBClassifier(learning_rate=0.1,
-                         max_iter=250,
-                         objective='multi:softmax',
-                         booster='gblinear')
+                         objective='reg:linear”')
     clfB.fit(data, y_trainB)
 
     apresentar_dados("FIM DO TREINAMENTO"+
@@ -1409,6 +1421,8 @@ def XGBoost():
     '\n\n Tempo total de treinamento do modelo multiclasse: ' + str(int((training_time).seconds/60)) + ' minutos '+
     '\n Tempo total de treinamento do modelo binário: ' + str(int((dt.datetime.now() - training_timeB).seconds/60)) + ' minutos ')
 
+    if not os.path.isdir('checkpoint'):
+        os.mkdir('checkpoint')
     pickle.dump(clf, open('./checkpoint/xgboost.sav', 'wb'))
     pickle.dump(clfB, open('./checkpoint/xgboostB.sav', 'wb'))
 
@@ -1523,6 +1537,9 @@ def apresentar_resultados_xgboost():
         info += '\n\n' + ('Acuracia do Modelo com {0} no teste : {1:.2f} %'.format(len(data), model_accuracy))
 
         dados['info'] = info
+
+        if not os.path.isdir('dados'):
+            os.mkdir('dados')
         pickle.dump(dados, open('./dados/xgboost.sav', 'wb'))
 
     # Mostrar matriz de confusao
@@ -1645,6 +1662,9 @@ def apresentar_resultados_xgboostB():
         info += '\n\n' + ('Acuracia do Modelo com {0} no teste : {1:.2f} %'.format(len(data), model_accuracy))
 
         dados['info'] = info
+
+        if not os.path.isdir('dados'):
+            os.mkdir('dados')
         pickle.dump(dados, open('./dados/xgboostB.sav', 'wb'))
 
     # Mostrar matriz de confusao
@@ -1916,13 +1936,42 @@ def construir_menu_shufflenet():
 
     # Apresenta os resultados dos testes do treinamento
     btn_shufflenet = Tk.Button(root, text = "Apresentar Resultados", padx = 1, pady = 1,
-                               fg = "white", bg = "#00006F", command = apresentar_resultados_shufflenet)
+                               fg = "white", bg = "#00006F", command = construir_menu_shufflenet_apresentar)
     btn_shufflenet.place(relwidth = 0.4, relheight = 0.8, relx = 0.34, rely = 0.1)
 
     # Possibilita classificar uma imagem selecionada
     btn_shufflenet = Tk.Button(root, text = "Classificar", padx = 1, pady = 1,
                                fg = "white", bg = "#00006F", command = classificar_shufflenet)
     btn_shufflenet.place(relwidth = 0.23, relheight = 0.8, relx = 0.75, rely = 0.1)
+
+"""
+Nome: construir_menu_shufflenet_apresentar
+Funcao: Apresentar informacoes de classificacao.
+"""
+def construir_menu_shufflenet_apresentar():
+    # Configurar tela
+    limpar_menu()
+    root.title("Dados - ShuffleNet")
+    root.minsize(300, 50)
+    root.maxsize(300, 50)
+    screen = Tk.Canvas(root, height = 50, width= 300, bg = "#202020")
+    screen.pack()
+
+    # Criar botao com opcao para salvar
+    btn_salvar = Tk.Button(root, text = "<", padx = 1, pady = 1,
+                           fg = "white", bg = "#00006F", command = construir_menu_xgboost)
+    btn_salvar.place(relwidth = 0.2, relheight = 0.8, relx = 0.02, rely = 0.1)
+
+    # Criar botao com opcao para salvar
+    btn_salvar = Tk.Button(root, text = "Multiclasse", padx = 1, pady = 1,
+                           fg = "white", bg = "#00006F", command = apresentar_resultados_shufflenet)
+    btn_salvar.place(relwidth = 0.36, relheight = 0.8, relx = 0.23, rely = 0.1)
+
+    # Criar botao com opcao de nao salvar
+    btn_nao_salvar = Tk.Button(root, text = "Binário", padx = 1, pady = 1,
+                               fg = "white", bg = "#00006F", command = apresentar_resultados_shufflenetB)
+    btn_nao_salvar.place(relwidth = 0.36, relheight = 0.8, relx = 0.62, rely = 0.1)
+
 
 """
 Nome: construir_menu_svm
