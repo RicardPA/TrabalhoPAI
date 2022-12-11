@@ -794,9 +794,9 @@ def classificar_shufflenet():
         predicted_index = predictions[0].argmax(0)
         predicted = class_mapping[predicted_index]
 
-    resultado = 'Tem osteoartrite' if predict > 1 else 'Não tem osteoartrite'
+    resultado = 'Tem osteoartrite' if int(predicted[0]) > 1 else 'Não tem osteoartrite'
     apresentar_dados("FIM DA CLASSIFICAÇÃO"+
-    "Joelho cassificado como: " + str(predicted)+
+    "\nJoelho cassificado como: " + str(predicted)+
     "\n Resultado: " + resultado +
     '\n Tempo total de clasificação: ' + str((dt.datetime.now() - classifier_time).seconds) + ' segundos ')
 
@@ -1238,9 +1238,9 @@ def classificar_svm():
 
     y_pred = clf.predict(X_test)
 
-    resultado = 'Tem osteoartrite' if y_pred[0] > 1 else 'Não tem osteoartrite'
+    resultado = 'Tem osteoartrite' if int(y_pred[0]) > 1 else 'Não tem osteoartrite'
     apresentar_dados("FIM DA CLASSIFICAÇÃO"+
-    "Joelho cassificado como: " + str(y_pred[0])+
+    "\nJoelho cassificado como: " + str(y_pred[0])+
     "\n Resultado: " + resultado)
 
 """
@@ -1299,7 +1299,7 @@ def classificar_svmB():
 
     resultado = 'Tem osteoartrite' if y_pred[0] == 1 else 'Não tem osteoartrite'
     apresentar_dados("FIM DA CLASSIFICAÇÃO"+
-    "Joelho cassificado como: " + str(y_pred[0])+
+    "\nJoelho cassificado como: " + str(y_pred[0])+
     "\n Resultado: " + resultado)
 
 # --- --- --- --- XGBoost --- --- --- ---
